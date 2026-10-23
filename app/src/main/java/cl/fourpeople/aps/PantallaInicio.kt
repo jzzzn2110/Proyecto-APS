@@ -25,7 +25,9 @@ private val GrisInicio = Color(0xFF6E7772)
 @Composable
 fun PantallaInicio(
     onCerrarSesion: () -> Unit,
-    onAbrirDocumentos: () -> Unit
+    onAbrirDocumentos: () -> Unit,
+    onNuevaSolicitud: () -> Unit,
+    onNavegar: (String) -> Unit
 ) {
     var mostrarCarga by rememberSaveable {
         mutableStateOf(false)
@@ -58,49 +60,7 @@ fun PantallaInicio(
 
     Scaffold(
         containerColor = FondoInicio,
-        bottomBar = {
-            NavigationBar(containerColor = Color.White) {
-                val opciones = listOf(
-                    "Inicio",
-                    "Documentos",
-                    "Solicitudes",
-                    "Avisos"
-                )
-
-                val iconos = listOf(
-                    android.R.drawable.ic_menu_view,
-                    android.R.drawable.ic_menu_agenda,
-                    android.R.drawable.ic_menu_today,
-                    android.R.drawable.ic_dialog_info
-                )
-
-                opciones.forEachIndexed { indice, titulo ->
-                    NavigationBarItem(
-                        selected = indice == 0,
-                        enabled = indice <= 1,
-                        onClick = {
-                            if (indice == 1) {
-                                onAbrirDocumentos()
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                painterResource(iconos[indice]),
-                                contentDescription = null
-                            )
-                        },
-                        label = {
-                            Text(titulo, fontSize = 10.sp)
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = VerdeInicio,
-                            selectedTextColor = VerdeInicio,
-                            indicatorColor = Color(0xFFDDEFE6)
-                        )
-                    )
-                }
-            }
-        }
+        bottomBar = { NavegacionFuncionario("inicio", onNavegar) }
     ) { espacio ->
         Column(
             modifier = Modifier
@@ -174,7 +134,9 @@ fun PantallaInicio(
                 )
 
                 ResumenInicio(
-                    "1",
+                    DatosSolicitudes.estado.solicitudes.count {
+                        it.estado == EstadoSolicitud.EN_REVISION
+                    }.toString(),
                     "Solicitud en curso",
                     Color(0xFF24518A),
                     Modifier.weight(1f)
@@ -226,7 +188,8 @@ fun PantallaInicio(
             AccesoInicio(
                 titulo = "Nueva solicitud",
                 detalle = "Permisos, feriado legal y otros trámites",
-                icono = android.R.drawable.ic_menu_today
+                icono = android.R.drawable.ic_menu_today,
+                onClick = onNuevaSolicitud
             )
 
             Row(

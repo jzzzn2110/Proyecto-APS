@@ -83,8 +83,11 @@ fun PantallaCargaDocumento(
     var error by rememberSaveable(documentoId) { mutableStateOf<String?>(null) }
     var ocupado by remember { mutableStateOf(false) }
 
+    var fotoPendiente by rememberSaveable(documentoId) { mutableStateOf("") }
+    val bloqueado = ocupado || fotoPendiente.isNotBlank()
+
     fun cancelar() {
-        if (ocupado) return
+        if (bloqueado) return
 
         alcance.launch {
             ocupado = true
@@ -139,6 +142,42 @@ fun PantallaCargaDocumento(
         }
     }
 
+    val camara = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { tomada ->
+        val temporal = fotoPendiente
+        if (temporal.isNotBlank()) {
+            ocupado = true
+            alcance.launch {
+                try {
+                    if (tomada) {
+                        val anterior = archivoUri
+                        val nueva = ArchivosFuncionario.importar(
+                            contexto,
+                            android.net.Uri.parse(temporal)
+                        )
+                        archivoUri = nueva.uri
+                        nombreArchivo = "Fotografía del documento"
+                        if (nombre.isBlank()) {
+                            nombre = "Documento fotografiado"
+                        }
+                        ArchivosFuncionario.eliminarSinGuardar(contexto, anterior)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    error = e.message ?: "No se pudo procesar la fotografía."
+                } finally {
+                    withContext(NonCancellable) {
+                        CamaraFuncionario.eliminarTemporal(contexto, temporal)
+                        fotoPendiente = ""
+                        ocupado = false
+                    }
+                }
+            }
+        }
+    }
+
     BackHandler {
         cancelar()
     }
@@ -157,7 +196,7 @@ fun PantallaCargaDocumento(
         ) {
             TextButton(
                 onClick = { cancelar() },
-                enabled = !ocupado
+                enabled = !bloqueado
             ) {
                 Text("Volver")
             }
@@ -199,7 +238,7 @@ fun PantallaCargaDocumento(
                         arrayOf("application/pdf", "image/*")
                     )
                 },
-                enabled = !ocupado,
+                enabled = !bloqueado,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -211,7 +250,30 @@ fun PantallaCargaDocumento(
                 )
             }
 
-            if (ocupado) {
+            OutlinedButton(
+                onClick = {
+                    error = null
+                    try {
+                        val destino = CamaraFuncionario.crearDestino(contexto)
+                        fotoPendiente = destino.toString()
+                        camara.launch(destino)
+                    } catch (e: Exception) {
+                        val temporal = fotoPendiente
+                        fotoPendiente = ""
+                        alcance.launch {
+                            CamaraFuncionario.eliminarTemporal(contexto, temporal)
+                        }
+                        error = "No se pudo abrir la cámara. " +
+                                "Comprueba que el dispositivo tenga una aplicación de cámara."
+                    }
+                },
+                enabled = !bloqueado,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Tomar foto")
+            }
+
+            if (bloqueado) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(26.dp)
                 )
@@ -251,7 +313,7 @@ fun PantallaCargaDocumento(
                     FilterChip(
                         selected = categoria == opcion,
                         onClick = { categoria = opcion },
-                        enabled = !ocupado,
+                        enabled = !bloqueado,
                         label = { Text(opcion) }
                     )
                 }
@@ -267,7 +329,7 @@ fun PantallaCargaDocumento(
                 onValueChange = { nombre = it },
                 label = { Text("Nombre del documento") },
                 singleLine = true,
-                enabled = !ocupado,
+                enabled = !bloqueado,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -277,7 +339,7 @@ fun PantallaCargaDocumento(
                 label = { Text("Fecha del documento") },
                 placeholder = { Text("DD/MM/AAAA") },
                 singleLine = true,
-                enabled = !ocupado,
+                enabled = !bloqueado,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -287,7 +349,7 @@ fun PantallaCargaDocumento(
                 label = { Text("Vencimiento opcional") },
                 placeholder = { Text("DD/MM/AAAA") },
                 singleLine = true,
-                enabled = !ocupado,
+                enabled = !bloqueado,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -300,7 +362,7 @@ fun PantallaCargaDocumento(
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number
                     ),
-                    enabled = !ocupado,
+                    enabled = !bloqueado,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -313,13 +375,13 @@ fun PantallaCargaDocumento(
             }
 
             Button(
-                enabled = !ocupado && archivoUri.isNotBlank(),
+                enabled = !bloqueado && archivoUri.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 onClick = {
-                    if (!ocupado) {
+                    if (!bloqueado) {
                         ocupado = true
                         error = null
 

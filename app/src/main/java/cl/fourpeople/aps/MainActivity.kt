@@ -47,6 +47,14 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf("inicio")
                 }
 
+                var documentoObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
+                var solicitudObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
+                val navegar: (String) -> Unit = { destino ->
+                    documentoObjetivo = null
+                    solicitudObjetivo = null
+                    pantallaActual = destino
+                }
+
                 var preparado by remember {
                     mutableStateOf(false)
                 }
@@ -72,6 +80,7 @@ class MainActivity : ComponentActivity() {
                         DatosFuncionario.documentos.clear()
                         DatosFuncionario.documentos.addAll(guardados)
 
+                        DatosSolicitudes.cargar(applicationContext)
                         preparado = true
                     } catch (e: CancellationException) {
                         throw e
@@ -118,21 +127,49 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else if (sesionIniciada) {
-                        if (pantallaActual == "documentos") {
-                            PantallaDocumentos(
-                                onVolver = {
-                                    pantallaActual = "inicio"
+                        when (pantallaActual) {
+                            "documentos" -> PantallaDocumentos(
+                                onVolver = { navegar("inicio") },
+                                onNavegar = navegar,
+                                documentoInicialId = documentoObjetivo
+                            )
+                            "solicitudes" -> PantallaSolicitudes(
+                                onNavegar = navegar,
+                                onNueva = { navegar("nuevaSolicitud") },
+                                solicitudInicialId = solicitudObjetivo
+                            )
+                            "nuevaSolicitud" -> PantallaNuevaSolicitud(
+                                onVolver = { navegar("solicitudes") },
+                                onEnviada = { id ->
+                                    solicitudObjetivo = id
+                                    pantallaActual = "solicitudEnviada"
                                 }
                             )
-                        } else {
-                            PantallaInicio(
+                            "solicitudEnviada" -> PantallaSolicitudEnviada(
+                                id = solicitudObjetivo,
+                                onVerSolicitudes = { pantallaActual = "solicitudes" },
+                                onInicio = { navegar("inicio") }
+                            )
+                            "avisos" -> PantallaAvisos(
+                                onNavegar = navegar,
+                                onAbrir = { aviso ->
+                                    if (aviso.grupo == "DOCUMENTOS") {
+                                        documentoObjetivo = aviso.destinoId
+                                        pantallaActual = "documentos"
+                                    } else {
+                                        solicitudObjetivo = aviso.destinoId
+                                        pantallaActual = "solicitudes"
+                                    }
+                                }
+                            )
+                            else -> PantallaInicio(
                                 onCerrarSesion = {
                                     sesionIniciada = false
-                                    pantallaActual = "inicio"
+                                    navegar("inicio")
                                 },
-                                onAbrirDocumentos = {
-                                    pantallaActual = "documentos"
-                                }
+                                onAbrirDocumentos = { navegar("documentos") },
+                                onNuevaSolicitud = { navegar("nuevaSolicitud") },
+                                onNavegar = navegar
                             )
                         }
                     } else {

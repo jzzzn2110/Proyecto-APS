@@ -22,7 +22,11 @@ import androidx.compose.ui.unit.sp
 private val VerdeDocumentos = Color(0xFF115D55)
 
 @Composable
-fun PantallaDocumentos(onVolver: () -> Unit) {
+fun PantallaDocumentos(
+    onVolver: () -> Unit,
+    onNavegar: (String) -> Unit,
+    documentoInicialId: String? = null
+) {
     var mostrarCarga by rememberSaveable {
         mutableStateOf(false)
     }
@@ -39,8 +43,8 @@ fun PantallaDocumentos(onVolver: () -> Unit) {
         mutableStateOf("Todos")
     }
 
-    var seleccionadoId by rememberSaveable {
-        mutableStateOf<String?>(null)
+    var seleccionadoId by rememberSaveable(documentoInicialId) {
+        mutableStateOf(documentoInicialId)
     }
 
     val seleccionado = DatosFuncionario.documentos.firstOrNull {
@@ -77,54 +81,7 @@ fun PantallaDocumentos(onVolver: () -> Unit) {
 
     Scaffold(
         containerColor = Color(0xFFF5F7F4),
-        bottomBar = {
-            NavigationBar(
-                containerColor = Color.White
-            ) {
-                val opciones = listOf(
-                    "Inicio",
-                    "Documentos",
-                    "Solicitudes",
-                    "Avisos"
-                )
-
-                val iconos = listOf(
-                    android.R.drawable.ic_menu_view,
-                    android.R.drawable.ic_menu_agenda,
-                    android.R.drawable.ic_menu_today,
-                    android.R.drawable.ic_dialog_info
-                )
-
-                opciones.forEachIndexed { indice, titulo ->
-                    NavigationBarItem(
-                        selected = indice == 1,
-                        enabled = indice <= 1,
-                        onClick = {
-                            if (indice == 0) {
-                                onVolver()
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                painterResource(iconos[indice]),
-                                contentDescription = null
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = titulo,
-                                fontSize = 10.sp
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = VerdeDocumentos,
-                            selectedTextColor = VerdeDocumentos,
-                            indicatorColor = Color(0xFFDDEFE6)
-                        )
-                    )
-                }
-            }
-        }
+        bottomBar = { NavegacionFuncionario("documentos", onNavegar) }
     ) { espacio ->
         Column(
             modifier = Modifier

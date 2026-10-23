@@ -17,7 +17,9 @@ data class DocumentoFuncionario(
     val vencimiento: String = "",
     val motivoRechazo: String = "",
     val archivoUri: String = "",
-    val horas: Int? = null
+    val horas: Int? = null,
+    val version: Int = 1,
+    val historial: List<DocumentoFuncionario> = emptyList()
 )
 
 object DatosFuncionario {

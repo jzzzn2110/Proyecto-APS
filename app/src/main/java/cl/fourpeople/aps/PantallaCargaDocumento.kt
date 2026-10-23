@@ -24,12 +24,15 @@ import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PantallaCargaDocumento(
     onVolver: () -> Unit,
-    onGuardado: () -> Unit
+    onGuardado: () -> Unit,
+    documentoId: String? = null
 ) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
@@ -40,18 +43,44 @@ fun PantallaCargaDocumento(
             .withResolverStyle(ResolverStyle.STRICT)
     }
 
-    var nombre by rememberSaveable { mutableStateOf("") }
-    var categoria by rememberSaveable { mutableStateOf("Contrato") }
-
-    var fecha by rememberSaveable {
-        mutableStateOf(LocalDate.now().format(formato))
+    val original = remember(documentoId) {
+        DatosFuncionario.documentos.firstOrNull { it.id == documentoId }
     }
 
-    var vencimiento by rememberSaveable { mutableStateOf("") }
-    var horas by rememberSaveable { mutableStateOf("") }
-    var archivoUri by rememberSaveable { mutableStateOf("") }
-    var nombreArchivo by rememberSaveable { mutableStateOf("") }
-    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    if (documentoId != null &&
+        (original == null || original.estado != EstadoDocumento.RECHAZADO)
+    ) {
+        BackHandler(onBack = onVolver)
+        Column(
+            modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Este documento no está disponible para corrección.")
+            Button(onClick = onVolver) { Text("Volver") }
+        }
+        return
+    }
+
+    var nombre by rememberSaveable(documentoId) {
+        mutableStateOf(original?.nombre ?: "")
+    }
+    var categoria by rememberSaveable(documentoId) {
+        mutableStateOf(original?.categoria ?: "Contrato")
+    }
+    var fecha by rememberSaveable(documentoId) {
+        mutableStateOf(original?.fecha ?: LocalDate.now().format(formato))
+    }
+    var vencimiento by rememberSaveable(documentoId) {
+        mutableStateOf(original?.vencimiento ?: "")
+    }
+    var horas by rememberSaveable(documentoId) {
+        mutableStateOf(original?.horas?.toString() ?: "")
+    }
+
+    // Solo contiene el archivo nuevo; el anterior se conserva en el historial.
+    var archivoUri by rememberSaveable(documentoId) { mutableStateOf("") }
+    var nombreArchivo by rememberSaveable(documentoId) { mutableStateOf("") }
+    var error by rememberSaveable(documentoId) { mutableStateOf<String?>(null) }
     var ocupado by remember { mutableStateOf(false) }
 
     fun cancelar() {
@@ -134,10 +163,30 @@ fun PantallaCargaDocumento(
             }
 
             Text(
-                "Cargar documento",
+                if (original == null) "Cargar documento" else "Corregir documento",
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold
             )
+
+            if (original != null) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFF9E1DD)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Motivo del rechazo", fontWeight = FontWeight.Bold)
+                        Text(original.motivoRechazo)
+                        Text(
+                            "Adjunta un archivo corregido. Se enviará como versión " +
+                                    "${original.version + 1}, pendiente de revisión."
+                        )
+                    }
+                }
+            }
 
             Text(
                 "1. Adjunta un archivo",
@@ -270,74 +319,132 @@ fun PantallaCargaDocumento(
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 onClick = {
-                    try {
-                        require(nombre.trim().length in 3..120) {
-                            "El nombre debe tener entre 3 y 120 caracteres."
-                        }
+                    if (!ocupado) {
+                        ocupado = true
+                        error = null
 
-                        val fechaDocumento = runCatching {
-                            LocalDate.parse(fecha.trim(), formato)
-                        }.getOrElse {
-                            throw IllegalArgumentException(
-                                "Fecha inválida. Usa DD/MM/AAAA."
-                            )
-                        }
+                        alcance.launch {
+                            try {
+                                require(nombre.trim().length in 3..120) {
+                                    "El nombre debe tener entre 3 y 120 caracteres."
+                                }
 
-                        if (vencimiento.isNotBlank()) {
-                            val fin = runCatching {
-                                LocalDate.parse(
-                                    vencimiento.trim(),
-                                    formato
-                                )
-                            }.getOrElse {
-                                throw IllegalArgumentException(
-                                    "Vencimiento inválido. Usa DD/MM/AAAA."
-                                )
+                                val fechaDocumento = runCatching {
+                                    LocalDate.parse(fecha.trim(), formato)
+                                }.getOrElse {
+                                    throw IllegalArgumentException(
+                                        "Fecha inválida. Usa DD/MM/AAAA."
+                                    )
+                                }
+
+                                if (vencimiento.isNotBlank()) {
+                                    val fin = runCatching {
+                                        LocalDate.parse(
+                                            vencimiento.trim(),
+                                            formato
+                                        )
+                                    }.getOrElse {
+                                        throw IllegalArgumentException(
+                                            "Vencimiento inválido. Usa DD/MM/AAAA."
+                                        )
+                                    }
+
+                                    require(!fin.isBefore(fechaDocumento)) {
+                                        "El vencimiento no puede ser anterior al documento."
+                                    }
+                                }
+
+                                val horasCurso = if (
+                                    categoria == "Capacitación"
+                                ) {
+                                    horas.trim().toIntOrNull()
+                                } else {
+                                    null
+                                }
+
+                                if (categoria == "Capacitación") {
+                                    require(
+                                        horasCurso != null &&
+                                                horasCurso in 1..10000
+                                    ) {
+                                        "Indica horas entre 1 y 10000."
+                                    }
+                                }
+
+                                val nuevo = if (original == null) {
+                                    DocumentoFuncionario(
+                                        id = UUID.randomUUID().toString(),
+                                        nombre = nombre.trim(),
+                                        categoria = categoria,
+                                        fecha = fechaDocumento.format(formato),
+                                        vencimiento = vencimiento.trim(),
+                                        archivoUri = archivoUri,
+                                        horas = horasCurso
+                                    )
+                                } else {
+                                    original.copy(
+                                        nombre = nombre.trim(),
+                                        categoria = categoria,
+                                        fecha = fechaDocumento.format(formato),
+                                        estado = EstadoDocumento.PENDIENTE,
+                                        vencimiento = vencimiento.trim(),
+                                        motivoRechazo = "",
+                                        archivoUri = archivoUri,
+                                        horas = horasCurso,
+                                        version = original.version + 1,
+                                        historial = original.historial +
+                                                original.copy(historial = emptyList())
+                                    )
+                                }
+
+                                val actualizados = DatosFuncionario.documentos
+                                    .toMutableList()
+
+                                if (original == null) {
+                                    actualizados.add(0, nuevo)
+                                } else {
+                                    val indice = actualizados.indexOfFirst {
+                                        it.id == original.id
+                                    }
+                                    require(indice >= 0 && actualizados[indice] == original) {
+                                        "El documento cambió. Vuelve a abrirlo para corregirlo."
+                                    }
+                                    actualizados[indice] = nuevo
+                                }
+
+                                // Completa el guardado aunque se recree la pantalla.
+                                withContext(NonCancellable) {
+                                    PersistenciaDocumentos.guardar(
+                                        contexto.applicationContext,
+                                        actualizados
+                                    )
+
+                                    DatosFuncionario.documentos.clear()
+                                    DatosFuncionario.documentos.addAll(
+                                        actualizados
+                                    )
+
+                                    // El archivo ya pertenece al expediente guardado.
+                                    archivoUri = ""
+                                }
+
+                                onGuardado()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                error = e.message
+                                    ?: "No se pudo guardar el documento."
+                            } finally {
+                                ocupado = false
                             }
-
-                            require(!fin.isBefore(fechaDocumento)) {
-                                "El vencimiento no puede ser anterior al documento."
-                            }
                         }
-
-                        val horasCurso = if (
-                            categoria == "Capacitación"
-                        ) {
-                            horas.trim().toIntOrNull()
-                        } else {
-                            null
-                        }
-
-                        if (categoria == "Capacitación") {
-                            require(
-                                horasCurso != null &&
-                                        horasCurso in 1..10000
-                            ) {
-                                "Indica horas entre 1 y 10000."
-                            }
-                        }
-
-                        DatosFuncionario.documentos.add(
-                            0,
-                            DocumentoFuncionario(
-                                id = UUID.randomUUID().toString(),
-                                nombre = nombre.trim(),
-                                categoria = categoria,
-                                fecha = fechaDocumento.format(formato),
-                                vencimiento = vencimiento.trim(),
-                                archivoUri = archivoUri,
-                                horas = horasCurso
-                            )
-                        )
-
-                        onGuardado()
-                    } catch (e: Exception) {
-                        error = e.message
-                            ?: "Revisa los datos del documento."
                     }
                 }
             ) {
-                Text("Guardar documento")
+                Text(
+                    if (original == null) "Guardar documento"
+                    else "Enviar corrección"
+                )
             }
         }
     }

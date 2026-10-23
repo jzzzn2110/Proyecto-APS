@@ -27,6 +27,10 @@ fun PantallaDocumentos(onVolver: () -> Unit) {
         mutableStateOf(false)
     }
 
+    var editandoId by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
     var busqueda by rememberSaveable {
         mutableStateOf("")
     }
@@ -55,13 +59,16 @@ fun PantallaDocumentos(onVolver: () -> Unit) {
         PantallaCargaDocumento(
             onVolver = {
                 mostrarCarga = false
+                editandoId = null
             },
             onGuardado = {
                 mostrarCarga = false
                 busqueda = ""
                 categoria = "Todos"
-                seleccionadoId = null
-            }
+                seleccionadoId = editandoId
+                editandoId = null
+            },
+            documentoId = editandoId
         )
         return
     }
@@ -140,6 +147,7 @@ fun PantallaDocumentos(onVolver: () -> Unit) {
 
                 Button(
                     onClick = {
+                        editandoId = null
                         mostrarCarga = true
                     }
                 ) {
@@ -280,7 +288,7 @@ fun PantallaDocumentos(onVolver: () -> Unit) {
                             )
 
                             Text(
-                                text = "${documento.fecha} · ${documento.categoria}",
+                                text = "${documento.fecha} · ${documento.categoria} · v${documento.version}",
                                 color = Color.Gray,
                                 fontSize = 12.sp
                             )
@@ -294,68 +302,93 @@ fun PantallaDocumentos(onVolver: () -> Unit) {
     }
 
     seleccionado?.let { documento ->
+        var versionVista by rememberSaveable(documento.id, documento.version) {
+            mutableIntStateOf(documento.version)
+        }
+        val vista = if (versionVista == documento.version) {
+            documento
+        } else {
+            documento.historial.firstOrNull { it.version == versionVista } ?: documento
+        }
+
         AlertDialog(
-            onDismissRequest = {
-                seleccionadoId = null
-            },
-            title = {
-                Text(documento.nombre)
-            },
+            onDismissRequest = { seleccionadoId = null },
+            title = { Text(documento.nombre) },
             text = {
                 Column(
-                    modifier = Modifier
-                        .heightIn(max = 380.dp)
+                    modifier = Modifier.heightIn(max = 440.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    EtiquetaEstado(documento.estado)
-
-                    VistaPreviaDocumento(
-                        uri = documento.archivoUri
-                    )
-
+                    Text("Identificador: ${documento.id}", fontSize = 12.sp)
                     Text(
-                        text = "Categoría: ${documento.categoria}"
+                        if (vista.version == documento.version) {
+                            "Versión ${vista.version} · vigente"
+                        } else {
+                            "Versión ${vista.version} · anterior"
+                        },
+                        fontWeight = FontWeight.Bold
                     )
 
-                    Text(
-                        text = "Fecha: ${documento.fecha}"
-                    )
-
-                    if (documento.vencimiento.isNotBlank()) {
-                        Text(
-                            text = "Vencimiento: ${documento.vencimiento}"
-                        )
+                    if (documento.historial.isNotEmpty()) {
+                        Text("Historial de versiones", fontWeight = FontWeight.SemiBold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            (listOf(documento) + documento.historial
+                                .sortedByDescending { it.version }).forEach { version ->
+                                FilterChip(
+                                    selected = versionVista == version.version,
+                                    onClick = { versionVista = version.version },
+                                    label = {
+                                        Text(
+                                            if (version.version == documento.version) {
+                                                "v${version.version} · vigente"
+                                            } else {
+                                                "v${version.version}"
+                                            }
+                                        )
+                                    }
+                                )
+                            }
+                        }
                     }
 
-                    documento.horas?.let { cantidad ->
-                        Text(
-                            text = "Horas de capacitación: $cantidad"
-                        )
+                    EtiquetaEstado(vista.estado)
+                    key(vista.version) {
+                        VistaPreviaDocumento(uri = vista.archivoUri)
                     }
-
-                    if (
-                        documento.estado == EstadoDocumento.RECHAZADO
-                    ) {
-                        Text(
-                            text = "Motivo del rechazo",
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Text(
-                            text = documento.motivoRechazo,
-                            color = Color(0xFFA52D26)
-                        )
+                    Text("Nombre: ${vista.nombre}")
+                    Text("Categoría: ${vista.categoria}")
+                    Text("Fecha: ${vista.fecha}")
+                    if (vista.vencimiento.isNotBlank()) {
+                        Text("Vencimiento: ${vista.vencimiento}")
+                    }
+                    vista.horas?.let { Text("Horas de capacitación: $it") }
+                    if (vista.estado == EstadoDocumento.RECHAZADO) {
+                        Text("Motivo del rechazo", fontWeight = FontWeight.Bold)
+                        Text(vista.motivoRechazo, color = Color(0xFFA52D26))
                     }
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        seleccionadoId = null
-                    }
-                ) {
+                TextButton(onClick = { seleccionadoId = null }) {
                     Text("Cerrar")
+                }
+            },
+            dismissButton = {
+                if (documento.estado == EstadoDocumento.RECHAZADO) {
+                    TextButton(
+                        onClick = {
+                            editandoId = documento.id
+                            seleccionadoId = null
+                            mostrarCarga = true
+                        }
+                    ) {
+                        Text("Corregir documento")
+                    }
                 }
             }
         )

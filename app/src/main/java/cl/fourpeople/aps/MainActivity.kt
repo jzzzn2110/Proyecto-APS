@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
 
 private val VerdeAps = Color(0xFF115D55)
 private val FondoAps = Color(0xFFF5F7F4)
@@ -46,11 +47,77 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf("inicio")
                 }
 
+                var preparado by remember {
+                    mutableStateOf(false)
+                }
+
+                var errorCarga by remember {
+                    mutableStateOf<String?>(null)
+                }
+
+                var intento by remember {
+                    mutableIntStateOf(0)
+                }
+
+                LaunchedEffect(intento) {
+                    preparado = false
+                    errorCarga = null
+
+                    try {
+                        val guardados = PersistenciaDocumentos.cargar(
+                            applicationContext,
+                            DatosFuncionario.documentos.toList()
+                        )
+
+                        DatosFuncionario.documentos.clear()
+                        DatosFuncionario.documentos.addAll(guardados)
+
+                        preparado = true
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        errorCarga = e.message
+                            ?: "No se pudo abrir el expediente."
+                    }
+                }
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = FondoAps
                 ) {
-                    if (sesionIniciada) {
+                    if (!preparado) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .safeDrawingPadding()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            val mensaje = errorCarga
+
+                            if (mensaje == null) {
+                                CircularProgressIndicator()
+
+                                Spacer(Modifier.height(16.dp))
+
+                                Text("Cargando expediente…")
+                            } else {
+                                Text(
+                                    mensaje,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+
+                                Spacer(Modifier.height(16.dp))
+
+                                Button(
+                                    onClick = { intento++ }
+                                ) {
+                                    Text("Reintentar")
+                                }
+                            }
+                        }
+                    } else if (sesionIniciada) {
                         if (pantallaActual == "documentos") {
                             PantallaDocumentos(
                                 onVolver = {
@@ -159,9 +226,7 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                     usuario = it
                     error = null
                 },
-                label = {
-                    Text("Usuario")
-                },
+                label = { Text("Usuario") },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -173,9 +238,7 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                     clave = it
                     error = null
                 },
-                label = {
-                    Text("Contraseña")
-                },
+                label = { Text("Contraseña") },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),

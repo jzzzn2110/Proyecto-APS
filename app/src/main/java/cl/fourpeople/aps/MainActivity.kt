@@ -42,19 +42,36 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(false)
                 }
 
+                var pantallaActual by rememberSaveable {
+                    mutableStateOf("inicio")
+                }
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = FondoAps
                 ) {
                     if (sesionIniciada) {
-                        PantallaInicio(
-                            onCerrarSesion = {
-                                sesionIniciada = false
-                            }
-                        )
+                        if (pantallaActual == "documentos") {
+                            PantallaDocumentos(
+                                onVolver = {
+                                    pantallaActual = "inicio"
+                                }
+                            )
+                        } else {
+                            PantallaInicio(
+                                onCerrarSesion = {
+                                    sesionIniciada = false
+                                    pantallaActual = "inicio"
+                                },
+                                onAbrirDocumentos = {
+                                    pantallaActual = "documentos"
+                                }
+                            )
+                        }
                     } else {
                         PantallaLogin(
                             onIngresar = {
+                                pantallaActual = "inicio"
                                 sesionIniciada = true
                             }
                         )
@@ -67,11 +84,21 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun PantallaLogin(onIngresar: () -> Unit) {
+    var usuario by rememberSaveable {
+        mutableStateOf("")
+    }
 
-    var usuario by rememberSaveable { mutableStateOf("") }
-    var clave by rememberSaveable { mutableStateOf("") }
-    var rol by rememberSaveable { mutableStateOf("Funcionario") }
-    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var clave by rememberSaveable {
+        mutableStateOf("")
+    }
+
+    var rol by rememberSaveable {
+        mutableStateOf("Funcionario")
+    }
+
+    var error by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -99,27 +126,27 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "APS",
+                    text = "APS",
                     color = Color.White,
                     fontWeight = FontWeight.Bold
                 )
             }
 
             Text(
-                "CORPORACIÓN MUNICIPAL DE QUILPUÉ · SALUD",
+                text = "CORPORACIÓN MUNICIPAL DE QUILPUÉ · SALUD",
                 color = VerdeAps,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold
             )
 
             Text(
-                "Expediente Digital",
+                text = "Expediente Digital",
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
-                "Tus documentos laborales en un solo lugar, " +
+                text = "Tus documentos laborales en un solo lugar, " +
                         "seguros y siempre disponibles.",
                 color = Color(0xFF6E7772)
             )
@@ -132,7 +159,9 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                     usuario = it
                     error = null
                 },
-                label = { Text("Usuario") },
+                label = {
+                    Text("Usuario")
+                },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -144,7 +173,9 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                     clave = it
                     error = null
                 },
-                label = { Text("Contraseña") },
+                label = {
+                    Text("Contraseña")
+                },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
@@ -152,7 +183,7 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
             )
 
             Text(
-                "Rol simulado (solo para el MVP)",
+                text = "Rol simulado (solo para el MVP)",
                 fontWeight = FontWeight.SemiBold
             )
 
@@ -160,12 +191,10 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                 listOf("Funcionario", "Administrativo"),
                 listOf("Jefatura", "TI / Admin")
             ).forEach { fila ->
-
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     fila.forEach { opcion ->
-
                         FilterChip(
                             selected = rol == opcion,
                             onClick = {
@@ -173,7 +202,10 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                                 error = null
                             },
                             label = {
-                                Text(opcion, fontSize = 12.sp)
+                                Text(
+                                    text = opcion,
+                                    fontSize = 12.sp
+                                )
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(24.dp),
@@ -186,9 +218,9 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                 }
             }
 
-            error?.let {
+            error?.let { mensaje ->
                 Text(
-                    it,
+                    text = mensaje,
                     color = MaterialTheme.colorScheme.error
                 )
             }
@@ -223,13 +255,13 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    "Ingresar",
+                    text = "Ingresar",
                     fontWeight = FontWeight.Bold
                 )
             }
 
             Text(
-                "Autenticación simulada. Se utilizan " +
+                text = "Autenticación simulada. Se utilizan " +
                         "exclusivamente datos ficticios.",
                 color = Color(0xFF6E7772),
                 fontSize = 12.sp

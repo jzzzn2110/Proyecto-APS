@@ -1,13 +1,15 @@
 package cl.fourpeople.aps
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,7 +23,39 @@ private val FondoInicio = Color(0xFFF5F7F4)
 private val GrisInicio = Color(0xFF6E7772)
 
 @Composable
-fun PantallaInicio(onCerrarSesion: () -> Unit) {
+fun PantallaInicio(
+    onCerrarSesion: () -> Unit,
+    onAbrirDocumentos: () -> Unit
+) {
+    var mostrarCarga by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    val pendientes = DatosFuncionario.documentos.count {
+        it.estado == EstadoDocumento.PENDIENTE
+    }
+
+    val rechazados = DatosFuncionario.documentos.count {
+        it.estado == EstadoDocumento.RECHAZADO
+    }
+
+    val rechazado = DatosFuncionario.documentos.firstOrNull {
+        it.estado == EstadoDocumento.RECHAZADO
+    }
+
+    if (mostrarCarga) {
+        PantallaCargaDocumento(
+            onVolver = {
+                mostrarCarga = false
+            },
+            onGuardado = {
+                mostrarCarga = false
+                onAbrirDocumentos()
+            }
+        )
+        return
+    }
+
     Scaffold(
         containerColor = FondoInicio,
         bottomBar = {
@@ -43,8 +77,12 @@ fun PantallaInicio(onCerrarSesion: () -> Unit) {
                 opciones.forEachIndexed { indice, titulo ->
                     NavigationBarItem(
                         selected = indice == 0,
-                        enabled = indice == 0,
-                        onClick = {},
+                        enabled = indice <= 1,
+                        onClick = {
+                            if (indice == 1) {
+                                onAbrirDocumentos()
+                            }
+                        },
                         icon = {
                             Icon(
                                 painterResource(iconos[indice]),
@@ -122,14 +160,14 @@ fun PantallaInicio(onCerrarSesion: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ResumenInicio(
-                    "1",
+                    pendientes.toString(),
                     "Documento pendiente",
                     Color(0xFF8B5200),
                     Modifier.weight(1f)
                 )
 
                 ResumenInicio(
-                    "1",
+                    rechazados.toString(),
                     "Documento rechazado",
                     Color(0xFFA52D26),
                     Modifier.weight(1f)
@@ -143,36 +181,46 @@ fun PantallaInicio(onCerrarSesion: () -> Unit) {
                 )
             }
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFFF9E1DD)
-                ),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(
-                    Modifier
+            if (rechazado != null) {
+                Card(
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .clickable(
+                            onClick = onAbrirDocumentos
+                        ),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFF9E1DD)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text(
-                        "1 documento rechazado",
-                        color = Color(0xFFA52D26),
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            text = if (rechazados == 1) {
+                                "1 documento rechazado"
+                            } else {
+                                "$rechazados documentos rechazados"
+                            },
+                            color = Color(0xFFA52D26),
+                            fontWeight = FontWeight.Bold
+                        )
 
-                    Text(
-                        "Certificado curso IAAS · revisa el motivo",
-                        color = Color(0xFFA52D26),
-                        fontSize = 12.sp
-                    )
+                        Text(
+                            "${rechazado.nombre} · revisa el motivo",
+                            color = Color(0xFFA52D26),
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 
             AccesoInicio(
                 titulo = "Cargar documento",
-                detalle = "Escanea con la cámara o sube un archivo",
+                detalle = "Selecciona un PDF o una imagen",
                 icono = android.R.drawable.ic_menu_upload,
-                destacado = true
+                destacado = true,
+                onClick = {
+                    mostrarCarga = true
+                }
             )
 
             AccesoInicio(
@@ -181,11 +229,23 @@ fun PantallaInicio(onCerrarSesion: () -> Unit) {
                 icono = android.R.drawable.ic_menu_today
             )
 
-            Text(
-                "Últimos movimientos",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Últimos documentos",
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                TextButton(
+                    onClick = onAbrirDocumentos
+                ) {
+                    Text("Ver todos")
+                }
+            }
 
             Card(
                 colors = CardDefaults.cardColors(
@@ -193,25 +253,35 @@ fun PantallaInicio(onCerrarSesion: () -> Unit) {
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                MovimientoInicio(
-                    titulo = "Anexo de contrato 2026",
-                    detalle = "Documento · hoy",
-                    estado = "Pendiente",
-                    fondo = Color(0xFFFFEED0),
-                    color = Color(0xFF8B5200)
-                )
+                val recientes = DatosFuncionario.documentos.take(2)
 
-                HorizontalDivider(
-                    color = Color(0xFFE5E9E5)
-                )
+                recientes.forEachIndexed { indice, documento ->
+                    val (fondo, color) = when (documento.estado) {
+                        EstadoDocumento.PENDIENTE ->
+                            Color(0xFFFFEED0) to Color(0xFF8B5200)
 
-                MovimientoInicio(
-                    titulo = "Permiso administrativo",
-                    detalle = "Solicitud · 26 sep",
-                    estado = "En revisión",
-                    fondo = Color(0xFFDDE8F7),
-                    color = Color(0xFF24518A)
-                )
+                        EstadoDocumento.APROBADO ->
+                            Color(0xFFDDEFE6) to VerdeInicio
+
+                        EstadoDocumento.RECHAZADO ->
+                            Color(0xFFF9E1DD) to Color(0xFFA52D26)
+                    }
+
+                    MovimientoInicio(
+                        titulo = documento.nombre,
+                        detalle = "${documento.fecha} · ${documento.categoria}",
+                        estado = documento.estado.texto,
+                        fondo = fondo,
+                        color = color,
+                        onClick = onAbrirDocumentos
+                    )
+
+                    if (indice < recientes.lastIndex) {
+                        HorizontalDivider(
+                            color = Color(0xFFE5E9E5)
+                        )
+                    }
+                }
             }
         }
     }
@@ -260,9 +330,19 @@ private fun AccesoInicio(
     titulo: String,
     detalle: String,
     icono: Int,
-    destacado: Boolean = false
+    destacado: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            ),
         colors = CardDefaults.cardColors(
             containerColor = if (destacado) {
                 VerdeInicio
@@ -282,7 +362,11 @@ private fun AccesoInicio(
             Icon(
                 painterResource(icono),
                 contentDescription = null,
-                tint = if (destacado) Color.White else VerdeInicio,
+                tint = if (destacado) {
+                    Color.White
+                } else {
+                    VerdeInicio
+                },
                 modifier = Modifier.size(30.dp)
             )
 
@@ -318,11 +402,13 @@ private fun MovimientoInicio(
     detalle: String,
     estado: String,
     fondo: Color,
-    color: Color
+    color: Color,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)

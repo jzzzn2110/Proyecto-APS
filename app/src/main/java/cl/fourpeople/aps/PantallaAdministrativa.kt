@@ -36,6 +36,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
     var editandoExpediente by rememberSaveable { mutableStateOf(false) }
 
     // Explicación que se guarda cuando se rechaza un documento.
+    var editandoMetadatos by rememberSaveable { mutableStateOf(false) }
     var motivo by rememberSaveable { mutableStateOf("") }
 
     // Mientras guarda, deshabilita los botones principales.
@@ -59,7 +60,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
             try {
                 // Completa el guardado aunque se recree la pantalla.
                 withContext(NonCancellable) { tarea() }
-                documentoId = null; editandoExpediente = false
+                documentoId = null; editandoExpediente = false; editandoMetadatos = false
                 mensaje = "Cambios guardados en este dispositivo."
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) { error = e.message ?: "No se pudo guardar."
@@ -100,12 +101,13 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(item.nombre, fontWeight = FontWeight.Bold)
                                 Text("${item.categoria} · ${item.estado.texto} · v${item.version}")
-                                Button(onClick = { documentoId = item.id; motivo = ""; error = null }) { Text("Abrir documento") }
+                                Button(onClick = { documentoId = item.id; motivo = ""; error = null; editandoMetadatos = false }) { Text("Abrir documento") }
                             }
                         }
                     }
                 }
             }
+            if (perfil == "Administrativo") HistorialAdministrativo()
             mensaje?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             if (!editandoExpediente && documento == null) error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
@@ -142,7 +144,11 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
 
     // Detalle: muestra el archivo y permite aprobarlo o rechazarlo.
     documento?.let { original ->
-        AlertDialog(onDismissRequest = { if (!ocupado) documentoId = null },
+        if (editandoMetadatos) EditorMetadatos(original, ocupado, error,
+            onGuardar = { propuesta, razon -> ejecutar {
+                DatosAdministracion.corregirMetadatos(contexto, perfil, original, propuesta, razon)
+            } }, onVolver = { editandoMetadatos = false })
+        else AlertDialog(onDismissRequest = { if (!ocupado) documentoId = null },
             title = { Text(original.nombre) },
             text = {
                 Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
@@ -151,6 +157,9 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                     original.horas?.let { Text("Horas: $it") }
                     VistaPreviaDocumento(original.archivoUri)
                     // Los botones de revisión solo aparecen para documentos pendientes.
+                    OutlinedButton(onClick = { editandoMetadatos = true; error = null }, enabled = !ocupado) {
+                        Text("Corregir metadatos")
+                    }
                     if (original.estado == EstadoDocumento.PENDIENTE) {
                         OutlinedTextField(motivo, { motivo = it }, label = { Text("Motivo del rechazo") }, enabled = !ocupado)
                         Text("Para rechazar: motivo de 10 a 500 caracteres.")

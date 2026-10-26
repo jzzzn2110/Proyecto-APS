@@ -39,7 +39,7 @@ data class AvisoFuncionario(
 fun avisosFuncionario(hoy: LocalDate = LocalDate.now()): List<AvisoFuncionario> {
     val avisos = mutableListOf<AvisoFuncionario>()
     val formato = DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT)
-    DatosFuncionario.documentos.forEach { documento ->
+    DatosFuncionario.documentosActivos.forEach { documento ->
         val base = "documento:${documento.id}:${documento.version}"
         when (documento.estado) {
             EstadoDocumento.RECHAZADO -> avisos.add(AvisoFuncionario(

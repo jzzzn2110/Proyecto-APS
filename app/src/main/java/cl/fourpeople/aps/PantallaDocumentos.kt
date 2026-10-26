@@ -48,12 +48,12 @@ fun PantallaDocumentos(
         mutableStateOf(documentoInicialId)
     }
 
-    val seleccionado = DatosFuncionario.documentos.firstOrNull {
+    val seleccionado = DatosFuncionario.documentosActivos.firstOrNull {
         it.id == seleccionadoId
     }
 
     // Combina categoría y texto para filtrar la lista.
-    val visibles = DatosFuncionario.documentos.filter {
+    val visibles = DatosFuncionario.documentosActivos.filter {
         (categoria == "Todos" || it.categoria == categoria) &&
                 it.nombre.contains(
                     busqueda.trim(),

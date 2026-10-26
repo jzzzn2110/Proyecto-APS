@@ -27,9 +27,19 @@ data class CambioAdministrativo(
     val entidad: String, val accion: String, val motivo: String,
     val antes: String, val despues: String
 )
+// Guarda qué documento se dio de baja, quién lo hizo y el motivo.
+data class BajaDocumental(
+    val documentoId: String,
+    val responsable: String,
+    val fecha: String,
+    val motivo: String
+)
+
 data class EstadoAdministracion(
     val expediente: ExpedienteLaboral = ExpedienteLaboral(),
-    val cambios: List<CambioAdministrativo> = emptyList()
+    val cambios: List<CambioAdministrativo> = emptyList(),
+    // Conserva el registro de los documentos dados de baja.
+    val bajas: List<BajaDocumental> = emptyList()
 ) {
     fun registrar(entidad: String, accion: String, motivo: String, antes: String, despues: String) =
         copy(cambios = cambios + CambioAdministrativo(UUID.randomUUID().toString(),
@@ -46,6 +56,11 @@ object DatosAdministracion {
     // Formato de las fechas: día/mes/año. Rechaza fechas que no existen.
     val formato: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/uuuu")
         .withResolverStyle(ResolverStyle.STRICT)
+
+    // Devuelve true si el documento no está dado de baja.
+    fun activo(id: String): Boolean {
+        return estado.bajas.none { it.documentoId == id }
+    }
 
     // PERMISO: solo Administrativo puede editar o revisar aquí.
     private fun autorizar(perfil: String) {
@@ -84,6 +99,8 @@ object DatosAdministracion {
         // El rechazo necesita una explicación de 10 a 500 caracteres.
         require(aprobar || motivo.trim().length in 10..500) { "Motivo: entre 10 y 500 caracteres." }
         bloqueo.withLock {
+            // Los documentos dados de baja no se pueden modificar.
+            require(activo(original.id)) { "El documento está dado de baja." }
             // Comprueba que nadie haya cambiado el documento abierto.
             val actual = DatosFuncionario.documentos.firstOrNull { it.id == original.id }
             require(actual == original && actual?.estado == EstadoDocumento.PENDIENTE) {
@@ -123,6 +140,8 @@ object DatosAdministracion {
             "Las horas de capacitación deben estar entre 1 y 10000."
         }
         bloqueo.withLock {
+            // Los documentos dados de baja no se pueden modificar.
+            require(activo(original.id)) { "El documento está dado de baja." }
             require(DatosFuncionario.documentos.firstOrNull { it.id == original.id } == original) {
                 "El documento cambió. Vuelve a abrirlo."
             }
@@ -138,6 +157,55 @@ object DatosAdministracion {
             estado = siguiente
             DatosFuncionario.documentos.clear()
             DatosFuncionario.documentos.addAll(lista)
+        }
+    }
+
+    // Da de baja el documento y conserva su archivo e historial.
+    suspend fun darDeBaja(
+        contexto: Context,
+        perfil: String,
+        original: DocumentoFuncionario,
+        motivo: String
+    ) {
+        // Solo el perfil Administrativo puede dar documentos de baja.
+        autorizar(perfil)
+        val motivoLimpio = motivo.trim()
+        require(motivoLimpio.length in 10..500) {
+            "Motivo: entre 10 y 500 caracteres."
+        }
+
+        bloqueo.withLock {
+            // Evita dar de baja el mismo documento dos veces.
+            require(activo(original.id)) { "El documento ya está dado de baja." }
+
+            // Comprueba que el documento siga siendo el que se abrió.
+            val actual = DatosFuncionario.documentos.firstOrNull { it.id == original.id }
+            require(actual == original) { "El documento cambió. Vuelve a abrirlo." }
+
+            // El usuario es fijo porque esta es una sesión de prueba.
+            val baja = BajaDocumental(
+                documentoId = original.id,
+                responsable = "administrativo",
+                fecha = LocalDateTime.now().toString(),
+                motivo = motivoLimpio
+            )
+
+            // Agrega la baja y deja constancia en el historial.
+            val siguiente = estado.copy(bajas = estado.bajas + baja).registrar(
+                entidad = original.id,
+                accion = "BAJA_DOCUMENTAL",
+                motivo = motivoLimpio,
+                antes = "Activo · v${original.version}",
+                despues = "Baja lógica · archivo conservado"
+            )
+
+            // Conserva todos los documentos sin eliminar sus archivos.
+            PersistenciaDocumentos.guardar(
+                contexto,
+                DatosFuncionario.documentos.toList(),
+                siguiente
+            )
+            estado = siguiente
         }
     }
 }

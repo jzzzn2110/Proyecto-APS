@@ -34,15 +34,15 @@ fun PantallaInicio(
         mutableStateOf(false)
     }
 
-    val pendientes = DatosFuncionario.documentos.count {
+    val pendientes = DatosFuncionario.documentosActivos.count {
         it.estado == EstadoDocumento.PENDIENTE
     }
 
-    val rechazados = DatosFuncionario.documentos.count {
+    val rechazados = DatosFuncionario.documentosActivos.count {
         it.estado == EstadoDocumento.RECHAZADO
     }
 
-    val rechazado = DatosFuncionario.documentos.firstOrNull {
+    val rechazado = DatosFuncionario.documentosActivos.firstOrNull {
         it.estado == EstadoDocumento.RECHAZADO
     }
 
@@ -219,7 +219,7 @@ fun PantallaInicio(
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                val recientes = DatosFuncionario.documentos.take(2)
+                val recientes = DatosFuncionario.documentosActivos.take(2)
 
                 recientes.forEachIndexed { indice, documento ->
                     val (fondo, color) = when (documento.estado) {

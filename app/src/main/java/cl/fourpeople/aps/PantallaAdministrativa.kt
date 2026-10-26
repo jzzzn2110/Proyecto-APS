@@ -36,6 +36,8 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
     var editandoExpediente by rememberSaveable { mutableStateOf(false) }
 
     // Explicación que se guarda cuando se rechaza un documento.
+    // Abre la confirmación y pide el motivo de la baja.
+    var confirmandoBaja by rememberSaveable { mutableStateOf(false) }
     var editandoMetadatos by rememberSaveable { mutableStateOf(false) }
     var motivo by rememberSaveable { mutableStateOf("") }
 
@@ -50,7 +52,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
 
     // Usa los datos compartidos; no crea otra lista de documentos.
     val expediente = DatosAdministracion.estado.expediente
-    val documento = DatosFuncionario.documentos.firstOrNull { it.id == documentoId }
+    val documento = DatosFuncionario.documentosActivos.firstOrNull { it.id == documentoId }
 
     // Los botones usan esta función para guardar y mostrar errores.
     fun ejecutar(tarea: suspend () -> Unit) {
@@ -60,7 +62,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
             try {
                 // Completa el guardado aunque se recree la pantalla.
                 withContext(NonCancellable) { tarea() }
-                documentoId = null; editandoExpediente = false; editandoMetadatos = false
+                documentoId = null; editandoExpediente = false; editandoMetadatos = false; confirmandoBaja = false
                 mensaje = "Cambios guardados en este dispositivo."
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) { error = e.message ?: "No se pudo guardar."
@@ -96,7 +98,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                         }
                     }
                     // Dibuja una tarjeta por cada documento del funcionario.
-                    DatosFuncionario.documentos.forEach { item ->
+                    DatosFuncionario.documentosActivos.forEach { item ->
                         Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(item.nombre, fontWeight = FontWeight.Bold)
@@ -107,7 +109,10 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                     }
                 }
             }
-            if (perfil == "Administrativo") HistorialAdministrativo()
+            if (perfil == "Administrativo") {
+                BajasAdministrativas()
+                HistorialAdministrativo()
+            }
             mensaje?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             if (!editandoExpediente && documento == null) error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
@@ -144,7 +149,21 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
 
     // Detalle: muestra el archivo y permite aprobarlo o rechazarlo.
     documento?.let { original ->
-        if (editandoMetadatos) EditorMetadatos(original, ocupado, error,
+        if (confirmandoBaja) {
+            AlertDialog(onDismissRequest = { if (!ocupado) confirmandoBaja = false },
+                title = { Text("Dar de baja: ${original.nombre}") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Se ocultará de la vista habitual. Su archivo y sus versiones se conservan.")
+                        OutlinedTextField(motivo, { motivo = it }, label = { Text("Motivo de la baja") }, enabled = !ocupado)
+                        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { ejecutar {
+                    DatosAdministracion.darDeBaja(contexto, perfil, original, motivo)
+                } }, enabled = !ocupado) { Text("Confirmar baja") } },
+                dismissButton = { TextButton(onClick = { confirmandoBaja = false }, enabled = !ocupado) { Text("Cancelar") } })
+        } else if (editandoMetadatos) EditorMetadatos(original, ocupado, error,
             onGuardar = { propuesta, razon -> ejecutar {
                 DatosAdministracion.corregirMetadatos(contexto, perfil, original, propuesta, razon)
             } }, onVolver = { editandoMetadatos = false })
@@ -159,6 +178,9 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                     // Los botones de revisión solo aparecen para documentos pendientes.
                     OutlinedButton(onClick = { editandoMetadatos = true; error = null }, enabled = !ocupado) {
                         Text("Corregir metadatos")
+                    }
+                    OutlinedButton(onClick = { confirmandoBaja = true; motivo = ""; error = null }, enabled = !ocupado) {
+                        Text("Dar de baja")
                     }
                     if (original.estado == EstadoDocumento.PENDIENTE) {
                         OutlinedTextField(motivo, { motivo = it }, label = { Text("Motivo del rechazo") }, enabled = !ocupado)

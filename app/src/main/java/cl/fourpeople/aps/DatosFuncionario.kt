@@ -25,6 +25,9 @@ data class DocumentoFuncionario(
 object DatosFuncionario {
 
     // Antecedentes ficticios para la demostración.
+    // Oculta las bajas de las listas sin borrar los documentos guardados.
+    val documentosActivos: List<DocumentoFuncionario>
+        get() = documentos.filter { DatosAdministracion.activo(it.id) }
     val documentos = mutableStateListOf(
         DocumentoFuncionario(
             id = "DOC-001",

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 
+// coloresS: se pueden cambiar estos valores para ajustar la apariencia.
 private val VerdeAps = Color(0xFF115D55)
 private val FondoAps = Color(0xFFF5F7F4)
 
@@ -39,10 +40,15 @@ class MainActivity : ComponentActivity() {
                     surface = Color.White
                 )
             ) {
+                // Indica si se está mostrando una sesión de demostración.
                 var sesionIniciada by rememberSaveable {
                     mutableStateOf(false)
                 }
 
+                // Recuerda el perfil elegido al ingresar.
+                var perfilActual by rememberSaveable { mutableStateOf("Funcionario") }
+
+                // Indica qué pantalla del funcionario se muestra.
                 var pantallaActual by rememberSaveable {
                     mutableStateOf("inicio")
                 }
@@ -67,6 +73,7 @@ class MainActivity : ComponentActivity() {
                     mutableIntStateOf(0)
                 }
 
+                // al iniciar carga del teléfono los documentos y las solicitudes.
                 LaunchedEffect(intento) {
                     preparado = false
                     errorCarga = null
@@ -126,6 +133,12 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                        // Administrativo y Jefatura entran a su propia pantalla.
+                    } else if (sesionIniciada && perfilActual != "Funcionario") {
+                        PantallaAdministrativa(perfilActual) {
+                            sesionIniciada = false
+                            navegar("inicio")
+                        }
                     } else if (sesionIniciada) {
                         when (pantallaActual) {
                             "documentos" -> PantallaDocumentos(
@@ -174,7 +187,9 @@ class MainActivity : ComponentActivity() {
                         }
                     } else {
                         PantallaLogin(
-                            onIngresar = {
+                            // El login devuelve el perfil seleccionado
+                            onIngresar = { perfil ->
+                                perfilActual = perfil
                                 pantallaActual = "inicio"
                                 sesionIniciada = true
                             }
@@ -187,7 +202,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PantallaLogin(onIngresar: () -> Unit) {
+// login de prueba: aquí están el formulario y la validación de las cuentas ficticias.
+private fun PantallaLogin(onIngresar: (String) -> Unit) {
     var usuario by rememberSaveable {
         mutableStateOf("")
     }
@@ -287,6 +303,7 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                 fontWeight = FontWeight.SemiBold
             )
 
+            // Perfiles: estos nombres también se usan para comprobar permisos.
             listOf(
                 listOf("Funcionario", "Administrativo"),
                 listOf("Jefatura", "TI / Admin")
@@ -334,14 +351,18 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                             error = "Completa el usuario y la contraseña."
                         }
 
-                        rol != "Funcionario" -> {
+                        rol == "TI / Admin" -> {
                             error = "En esta etapa está disponible " +
-                                    "el perfil Funcionario."
+                                    "Funcionario, Administrativo y Jefatura."
                         }
 
-                        usuario.trim() == "c.rojas" &&
-                                clave == "Demo1234!" -> {
-                            onIngresar()
+                        // cuenta de prueba: usuario distinto según el perfil.
+                        usuario.trim() == when (rol) {
+                            "Administrativo" -> "administrativo"
+                            "Jefatura" -> "jefatura"
+                            else -> "c.rojas"
+                        } && clave == "Contraseña123#" -> {
+                            onIngresar(rol)
                         }
 
                         else -> {

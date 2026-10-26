@@ -23,6 +23,7 @@ private val FondoInicio = Color(0xFFF5F7F4)
 private val GrisInicio = Color(0xFF6E7772)
 
 @Composable
+// Inicio del funcionario: resumen, accesos rápidos y últimos documentos.
 fun PantallaInicio(
     onCerrarSesion: () -> Unit,
     onAbrirDocumentos: () -> Unit,
@@ -93,13 +94,15 @@ fun PantallaInicio(
 
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "Hola, Camila",
+                        // El saludo usa el primer nombre del expediente guardado.
+                        "Hola, ${DatosAdministracion.estado.expediente.nombre.substringBefore(' ')}",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        "Funcionaria · CESFAM Norte",
+                        // El centro también se obtiene del expediente compartido.
+                        "Funcionario · ${DatosAdministracion.estado.expediente.centro}",
                         color = GrisInicio,
                         fontSize = 12.sp
                     )

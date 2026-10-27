@@ -29,8 +29,17 @@ data class SolicitudFuncionario(
     val motivo: String,
     val creadaEn: String,
     val estado: EstadoSolicitud = EstadoSolicitud.EN_REVISION,
+    // Respuesta que escribe Jefatura al aprobar o rechazar.
     val respuesta: String = "",
-    val archivoUri: String = ""
+
+    // Dirección del archivo adjunto de la solicitud.
+    val archivoUri: String = "",
+
+    // Usuario que revisó la solicitud.
+    val revisadaPor: String = "",
+
+    // Fecha y hora en que se aprobó o rechazó.
+    val revisadaEn: String = ""
 ) {
     val dias: Double get() = (
             ChronoUnit.DAYS.between(LocalDate.parse(desde), LocalDate.parse(hasta)) + 1

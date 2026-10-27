@@ -74,7 +74,16 @@ object DatosSolicitudes {
                             creadaEn = dato.getString("creadaEn"),
                             estado = EstadoSolicitud.valueOf(dato.getString("estado")),
                             respuesta = dato.optString("respuesta", ""),
-                            archivoUri = dato.optString("archivoUri", "")
+
+                            // Recupera el archivo adjunto de la solicitud.
+                            archivoUri = dato.optString("archivoUri", ""),
+
+                            // Recupera quién revisó la solicitud y cuándo.
+                            // Las solicitudes antiguas pueden tener estos datos vacíos.
+                            revisadaPor = dato.optString("revisadaPor", ""),
+                            revisadaEn = dato.optString("revisadaEn", ""),
+
+
                         ).also {
                             require(it.id.isNotBlank())
                             val desde = LocalDate.parse(it.desde)
@@ -112,6 +121,67 @@ object DatosSolicitudes {
         }
     }
 
+    // Permite que Jefatura apruebe o rechace una solicitud pendiente.
+    suspend fun resolver(
+        contexto: Context,
+        perfil: String,
+        id: String,
+        aprobar: Boolean,
+        respuesta: String
+    ) {
+        // Comprueba el permiso antes de modificar los datos.
+        require(perfil == "Jefatura") {
+            "Solo Jefatura puede resolver solicitudes."
+        }
+
+        val respuestaLimpia = respuesta.trim()
+
+        // Tanto la aprobación como el rechazo necesitan una respuesta.
+        require(respuestaLimpia.length in 10..500) {
+            "La respuesta debe tener entre 10 y 500 caracteres."
+        }
+
+        // Evita que dos operaciones cambien las solicitudes al mismo tiempo.
+        bloqueo.withLock {
+            val original = estado.solicitudes.firstOrNull {
+                it.id == id
+            } ?: throw IllegalArgumentException("La solicitud no existe.")
+
+            // Una solicitud resuelta no se puede resolver otra vez.
+            require(original.estado == EstadoSolicitud.EN_REVISION) {
+                "La solicitud ya fue resuelta."
+            }
+
+            // Cambia únicamente la solicitud seleccionada.
+            val actualizadas = estado.solicitudes.map { solicitud ->
+                if (solicitud.id != id) {
+                    solicitud
+                } else {
+                    solicitud.copy(
+                        estado = if (aprobar) {
+                            EstadoSolicitud.APROBADA
+                        } else {
+                            EstadoSolicitud.RECHAZADA
+                        },
+                        respuesta = respuestaLimpia,
+
+                        // Usuario fijo de la sesión de demostración.
+                        revisadaPor = "jefatura",
+                        revisadaEn = java.time.LocalDateTime.now().toString()
+                    )
+                }
+            }
+
+            val siguiente = estado.copy(solicitudes = actualizadas)
+
+            // Primero guarda en el teléfono y luego actualiza la pantalla.
+            guardar(contexto, siguiente)
+            estado = siguiente
+
+            // El saldo se calcula con ReglasSolicitudes.
+            // Aprobar mantiene los días reservados; rechazar los libera.
+        }
+    }
     private suspend fun guardar(contexto: Context, datos: EstadoTramites) {
         withContext(Dispatchers.IO) {
             val solicitudes = JSONArray()
@@ -127,6 +197,10 @@ object DatosSolicitudes {
                     put("estado", solicitud.estado.name)
                     put("respuesta", solicitud.respuesta)
                     put("archivoUri", solicitud.archivoUri)
+
+                    // Conserva la revisión al cerrar y abrir la aplicación.
+                    put("revisadaPor", solicitud.revisadaPor)
+                    put("revisadaEn", solicitud.revisadaEn)
                 })
             }
             val contenido = JSONObject().apply {

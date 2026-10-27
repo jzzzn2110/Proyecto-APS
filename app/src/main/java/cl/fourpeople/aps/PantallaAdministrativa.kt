@@ -20,6 +20,15 @@ import kotlinx.coroutines.withContext
 @Composable
 fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
 
+    // Jefatura usa su propia pantalla para revisar solicitudes.
+    if (perfil == "Jefatura") {
+        PantallaJefatura(
+            perfil = perfil,
+            onSalir = onSalir
+        )
+        return
+    }
+
     // Contexto de Android: permite acceder al almacenamiento de la app.
     val contexto = LocalContext.current.applicationContext
 

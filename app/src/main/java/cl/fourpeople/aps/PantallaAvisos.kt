@@ -94,7 +94,7 @@ fun avisosFuncionario(hoy: LocalDate = LocalDate.now()): List<AvisoFuncionario> 
 fun PantallaAvisos(onNavegar: (String) -> Unit, onAbrir: (AvisoFuncionario) -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
-    val avisos = avisosFuncionario()
+    val avisos = AvisosAutomaticos.vigentes()
     val leidos = DatosSolicitudes.estado.avisosLeidos
     var ocupado by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }

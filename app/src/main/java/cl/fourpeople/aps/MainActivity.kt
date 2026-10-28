@@ -137,6 +137,7 @@ class MainActivity : ComponentActivity() {
                     } else if (sesionIniciada && perfilActual != "Funcionario") {
                         PantallaAdministrativa(perfilActual) {
                             sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
                             navegar("inicio")
                         }
                     } else if (sesionIniciada) {
@@ -178,6 +179,7 @@ class MainActivity : ComponentActivity() {
                             else -> PantallaInicio(
                                 onCerrarSesion = {
                                     sesionIniciada = false
+                                    SesionLocal.limpiar(applicationContext)
                                     navegar("inicio")
                                 },
                                 onAbrirDocumentos = { navegar("documentos") },
@@ -190,6 +192,7 @@ class MainActivity : ComponentActivity() {
                             // El login devuelve el perfil seleccionado
                             onIngresar = { perfil ->
                                 perfilActual = perfil
+                                SesionLocal.guardar(applicationContext, usuario = perfil.lowercase(), rol = perfil)
                                 pantallaActual = "inicio"
                                 sesionIniciada = true
                             }

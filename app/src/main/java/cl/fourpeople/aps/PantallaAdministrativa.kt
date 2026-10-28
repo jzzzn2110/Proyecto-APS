@@ -37,6 +37,8 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
 
     // Lo que el usuario escribió en el buscador.
     var busqueda by rememberSaveable { mutableStateOf("") }
+    var filtroCategoria by rememberSaveable { mutableStateOf("Todas") }
+    var filtroEstado by rememberSaveable { mutableStateOf("Todos") }
 
     // Documento abierto. null significa que no hay ninguno seleccionado.
     var documentoId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -93,6 +95,16 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
             } else {
                 OutlinedTextField(value = busqueda, onValueChange = { busqueda = it },
                     label = { Text("Buscar expediente por nombre, RUN o centro") }, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Todas", "Contrato", "Capacitación", "Anexo").forEach { opcion ->
+                        FilterChip(selected = filtroCategoria == opcion, onClick = { filtroCategoria = opcion }, label = { Text(opcion) })
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Todos", "Pendiente", "Aprobado", "Rechazado").forEach { opcion ->
+                        FilterChip(selected = filtroEstado == opcion, onClick = { filtroEstado = opcion }, label = { Text(opcion) })
+                    }
+                }
                 // Busca por nombre, RUN ficticio o centro.
                 val coincide = listOf(expediente.nombre, expediente.run, expediente.centro)
                     .any { it.contains(busqueda.trim(), ignoreCase = true) }
@@ -107,7 +119,10 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                         }
                     }
                     // Dibuja una tarjeta por cada documento del funcionario.
-                    DatosFuncionario.documentosActivos.forEach { item ->
+                    DatosFuncionario.documentosActivos.filter { item ->
+                        (filtroCategoria == "Todas" || item.categoria == filtroCategoria) &&
+                            (filtroEstado == "Todos" || item.estado.texto == filtroEstado)
+                    }.forEach { item ->
                         Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(item.nombre, fontWeight = FontWeight.Bold)
@@ -116,6 +131,10 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                             }
                         }
                     }
+                    if (DatosFuncionario.documentosActivos.none { item ->
+                            (filtroCategoria == "Todas" || item.categoria == filtroCategoria) &&
+                                (filtroEstado == "Todos" || item.estado.texto == filtroEstado)
+                        }) Text("No hay documentos con los filtros seleccionados.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (perfil == "Administrativo") {

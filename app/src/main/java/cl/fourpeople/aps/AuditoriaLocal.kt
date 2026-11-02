@@ -9,7 +9,7 @@ import org.json.JSONObject
 object AuditoriaLocal {
     var eventosDocumentales by mutableStateOf<List<EventoAuditoria>>(emptyList())
         internal set
-    val eventos: List<EventoAuditoria> get() = eventosDocumentales + DatosSolicitudes.estado.auditoria + DatosSeguridad.estado.auditoria
+    val eventos: List<EventoAuditoria> get() = eventosDocumentales + DatosSolicitudes.estado.auditoria + DatosSeguridad.estado.auditoria + DatosUsuarios.estado.auditoria
 
     fun evento(contexto: Context, id: String, nombre: String, accion: String,
                categoria: String = "Solicitud", detalle: String = ""): EventoAuditoria {

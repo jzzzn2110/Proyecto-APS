@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
                     errorCarga = null
 
                     try {
+                        RespaldoLocal.recuperarPendiente(applicationContext)
+                        DatosUsuarios.cargar(applicationContext)
                         val guardados = PersistenciaDocumentos.cargar(
                             applicationContext,
                             DatosFuncionario.documentos.toList()
@@ -100,8 +102,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(preparado, sesionIniciada, usuarioActual, DatosSeguridad.estado.bloqueadas) {
-                    if (preparado && sesionIniciada && usuarioActual in DatosSeguridad.estado.bloqueadas) {
+                LaunchedEffect(preparado, sesionIniciada, usuarioActual, DatosSeguridad.estado.bloqueadas, DatosUsuarios.estado.usuarios) {
+                    if (preparado && sesionIniciada && (usuarioActual in DatosSeguridad.estado.bloqueadas || ControlAcceso.perfil(applicationContext)?.activa != true)) {
                         sesionIniciada = false
                         SesionLocal.limpiar(applicationContext)
                         navegar("inicio")
@@ -146,13 +148,27 @@ class MainActivity : ComponentActivity() {
                         }
                         // Administrativo y Jefatura entran a su propia pantalla.
                     } else if (sesionIniciada && perfilActual == "TI / Admin") {
-                        PantallaAuditoria {
+                        PantallaAuditoria(onRestaurado = {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            preparado = false
+                            intento++
+                            android.widget.Toast.makeText(applicationContext, "Respaldo restaurado. Inicia sesión nuevamente.", android.widget.Toast.LENGTH_LONG).show()
+                        }) {
                             sesionIniciada = false
                             SesionLocal.limpiar(applicationContext)
                             navegar("inicio")
                         }
                     } else if (sesionIniciada && perfilActual != "Funcionario") {
                         PantallaAdministrativa(perfilActual) {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            navegar("inicio")
+                        }
+                    } else if (sesionIniciada && ControlAcceso.perfil(applicationContext)?.let {
+                            it.usuario != DatosAdministracion.estado.expediente.usuario || it.centro != DatosAdministracion.estado.expediente.centro
+                        } == true) {
+                        AccesoDenegado {
                             sesionIniciada = false
                             SesionLocal.limpiar(applicationContext)
                             navegar("inicio")

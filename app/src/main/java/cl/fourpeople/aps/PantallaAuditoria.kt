@@ -37,7 +37,7 @@ internal val FondoTi = Color(0xFFF5F7F4)
 internal val VerdeTi = Color(0xFF115D55)
 
 @Composable
-fun PantallaAuditoria(onSalir: () -> Unit) {
+fun PantallaAuditoria(onRestaurado: () -> Unit = {}, onSalir: () -> Unit) {
     var seccion by rememberSaveable { mutableStateOf("auditoria") }
     var incidenteObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
     var eventoObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
@@ -45,23 +45,33 @@ fun PantallaAuditoria(onSalir: () -> Unit) {
         primary = VerdeTi, secondaryContainer = Color(0xFFDDEFEA), onSecondaryContainer = VerdeTi,
         outline = Color(0xFFCBD4CE), outlineVariant = Color(0xFFDEE5DF)
     )) {
-        if (seccion == "incidentes") {
+        val contexto = LocalContext.current
+        val habilitadas = buildList {
+            if (ControlAcceso.puede(contexto, "auditoria.leer")) add("auditoria")
+            if (ControlAcceso.puede(contexto, "incidentes.gestionar")) add("incidentes")
+            if (listOf("usuarios.gestionar", "saldos.configurar", "respaldo.crear", "respaldo.restaurar").any { ControlAcceso.puede(contexto, it) }) add("usuarios")
+        }
+        val actual = seccion.takeIf { it in habilitadas } ?: habilitadas.firstOrNull()
+        if (actual == "incidentes") {
             PantallaIncidentes(onSalir, onAuditoria = {
                 seccion = "auditoria"; incidenteObjetivo = null; eventoObjetivo = null
-            }, incidenteInicialId = incidenteObjetivo, eventoInicialId = eventoObjetivo)
-        } else ContenidoAuditoria(onSalir,
+            }, incidenteInicialId = incidenteObjetivo, eventoInicialId = eventoObjetivo, onUsuarios = { seccion = "usuarios" })
+        } else if (actual == "usuarios") PantallaUsuarios(onSalir, { seccion = "auditoria" }, { seccion = "incidentes" }, onRestaurado)
+        else if (actual == "auditoria") ContenidoAuditoria(onSalir,
             onIncidentes = { incidenteObjetivo = null; eventoObjetivo = null; seccion = "incidentes" },
             onAbrirIncidente = { incidenteObjetivo = it; eventoObjetivo = null; seccion = "incidentes" },
-            onVincular = { eventoObjetivo = it.id; incidenteObjetivo = null; seccion = "incidentes" })
+            onVincular = { eventoObjetivo = it.id; incidenteObjetivo = null; seccion = "incidentes" },
+            onUsuarios = { seccion = "usuarios" })
+        else AccesoDenegado(onSalir)
     }
 }
 
 @Composable
 private fun ContenidoAuditoria(onSalir: () -> Unit, onIncidentes: () -> Unit,
-                                 onAbrirIncidente: (String) -> Unit, onVincular: (EventoAuditoria) -> Unit) {
+                                 onAbrirIncidente: (String) -> Unit, onVincular: (EventoAuditoria) -> Unit, onUsuarios: () -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
-    val esTi = DatosSeguridad.tieneAcceso(contexto)
+    val esTi = ControlAcceso.puede(contexto, "auditoria.leer")
     if (!esTi) {
         Column(Modifier.safeDrawingPadding().padding(24.dp)) {
             Text("Se requiere una sesión de TI para consultar la auditoría.")
@@ -131,7 +141,7 @@ private fun ContenidoAuditoria(onSalir: () -> Unit, onIncidentes: () -> Unit,
                         shape = RoundedCornerShape(18.dp)) { Text("Exportar reporte de auditoría") }
                 }
             } else {
-                NavegacionTi("auditoria", {}, onIncidentes, !exportando && csvPendiente == null)
+                NavegacionTi("auditoria", {}, onIncidentes, !exportando && csvPendiente == null, onUsuarios)
             }
         }) { espacio ->
         Column(Modifier.fillMaxSize().padding(espacio).verticalScroll(rememberScrollState()).padding(20.dp),
@@ -149,7 +159,7 @@ private fun ContenidoAuditoria(onSalir: () -> Unit, onIncidentes: () -> Unit,
                 Column(Modifier.weight(1f)) {
                     Text(if (seleccionHistorial != null) "Historial del documento" else if (seleccionBajas) "Bajas documentales" else "Auditoría",
                         fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    if (seleccionHistorial == null && !seleccionBajas) Text("Diego Herrera · TI / Administrador", color = Color(0xFF566861), fontSize = 13.sp)
+                    if (seleccionHistorial == null && !seleccionBajas) Text("${ControlAcceso.perfil(contexto)?.nombre.orEmpty()} · TI / Administrador", color = Color(0xFF566861), fontSize = 13.sp)
                 }
                 if (seleccionHistorial == null && !seleccionBajas) TextButton(onClick = onSalir) { Text("Salir") }
             }
@@ -205,7 +215,7 @@ private fun ContenidoAuditoria(onSalir: () -> Unit, onIncidentes: () -> Unit,
                         SelectorTi("Período", periodo, listOf("Hoy", "Últimos 7 días", "Últimos 30 días", "Todo el historial"), Modifier.weight(1f)) { periodo = it }
                     }
                     val abiertos = DatosSeguridad.estado.incidentes.count { it.estado != EstadoIncidente.CERRADO }
-                    if (abiertos > 0) {
+                    if (abiertos > 0 && ControlAcceso.puede(contexto, "incidentes.gestionar")) {
                         Card(onClick = onIncidentes, colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEED0)),
                             modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                             Text("$abiertos incidentes pendientes · Ver incidentes ›", Modifier.padding(18.dp),
@@ -227,7 +237,7 @@ private fun ContenidoAuditoria(onSalir: () -> Unit, onIncidentes: () -> Unit,
                         EventoTi(evento, esDocumento || esIncidente) {
                             if (esIncidente) onAbrirIncidente(evento.entidadId) else documentoId = evento.entidadId
                         }
-                        if (PerfilesCompartidos.perfiles.any { it.usuario == evento.usuario }) {
+                        if (ControlAcceso.puede(contexto, "incidentes.gestionar") && PerfilesCompartidos.perfiles.any { it.usuario == evento.usuario }) {
                             TextButton(onClick = { onVincular(evento) }) { Text("Vincular a incidente") }
                         }
                     }
@@ -305,13 +315,14 @@ private fun IconoTi(tipo: String, color: Color = LocalContentColor.current) {
 }
 
 @Composable
-internal fun NavegacionTi(actual: String, onAuditoria: () -> Unit, onIncidentes: () -> Unit, habilitado: Boolean = true) {
+internal fun NavegacionTi(actual: String, onAuditoria: () -> Unit, onIncidentes: () -> Unit, habilitado: Boolean = true, onUsuarios: () -> Unit = {}) {
+    val contexto = LocalContext.current
     NavigationBar(containerColor = Color.White) {
-        NavigationBarItem(selected = actual == "auditoria", enabled = habilitado, onClick = onAuditoria,
+        NavigationBarItem(selected = actual == "auditoria", enabled = habilitado && ControlAcceso.puede(contexto, "auditoria.leer"), onClick = onAuditoria,
             icon = { IconoTi("auditoria") }, label = { Text("Auditoría") })
-        NavigationBarItem(selected = actual == "incidentes", enabled = habilitado, onClick = onIncidentes,
+        NavigationBarItem(selected = actual == "incidentes", enabled = habilitado && ControlAcceso.puede(contexto, "incidentes.gestionar"), onClick = onIncidentes,
             icon = { IconoTi("incidentes") }, label = { Text("Incidentes") })
-        NavigationBarItem(selected = false, enabled = false, onClick = {},
+        NavigationBarItem(selected = actual == "usuarios", enabled = habilitado && listOf("usuarios.gestionar", "saldos.configurar", "respaldo.crear", "respaldo.restaurar").any { ControlAcceso.puede(contexto, it) }, onClick = onUsuarios,
             icon = { IconoTi("usuarios") }, label = { Text("Usuarios") })
     }
 }

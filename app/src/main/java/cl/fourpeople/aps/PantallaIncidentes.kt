@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun PantallaIncidentes(onSalir: () -> Unit, onAuditoria: () -> Unit,
-                       incidenteInicialId: String? = null, eventoInicialId: String? = null) {
+                       incidenteInicialId: String? = null, eventoInicialId: String? = null, onUsuarios: () -> Unit = {}) {
     val contexto = LocalContext.current.applicationContext
     val prefs = contexto.getSharedPreferences("sesion_local", 0)
     if (!DatosSeguridad.tieneAcceso(contexto)) {
@@ -63,7 +63,7 @@ fun PantallaIncidentes(onSalir: () -> Unit, onAuditoria: () -> Unit,
         if (!ocupado) { creando = false; seleccionado = null; error = null }
     }
     Scaffold(containerColor = FondoTi,
-        bottomBar = { NavegacionTi("incidentes", onAuditoria, {}, !ocupado) }) { espacio ->
+        bottomBar = { NavegacionTi("incidentes", onAuditoria, {}, !ocupado, onUsuarios) }) { espacio ->
         Column(Modifier.fillMaxSize().padding(espacio).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -118,13 +118,15 @@ fun PantallaIncidentes(onSalir: () -> Unit, onAuditoria: () -> Unit,
         var observacion by rememberSaveable(incidente.id) { mutableStateOf("") }
         var bloqueoSolicitado by rememberSaveable(incidente.id) { mutableStateOf<Boolean?>(null) }
         val bloqueada = incidente.usuario in DatosSeguridad.estado.bloqueadas
+        val cuentaActiva = PerfilesCompartidos.perfiles.firstOrNull { it.usuario == incidente.usuario }?.activa == true
         AlertDialog(onDismissRequest = { if (!ocupado) { seleccionado = null; error = null } },
             title = { Text(incidente.titulo) },
             text = {
                 Column(Modifier.heightIn(max = 490.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     EtiquetaIncidente(incidente.estado.texto)
                     Text(incidente.descripcion)
-                    Text("Cuenta: ${incidente.usuario} · ${if (bloqueada) "Bloqueada" else "Activa"}", fontWeight = FontWeight.SemiBold)
+                    Text("Cuenta: ${incidente.usuario} · ${if (bloqueada) "Bloqueada" else if (cuentaActiva) "Activa" else "Inactiva"}", fontWeight = FontWeight.SemiBold)
+                    if (!cuentaActiva) Text("La cuenta está desactivada en Usuarios. Quitar el bloqueo del incidente no habilita su acceso.")
                     Text("Prioridad: ${incidente.prioridad.texto} · ${fechaIncidente(incidente.fecha)}")
                     Text("Eventos vinculados", fontWeight = FontWeight.Bold)
                     if (incidente.eventosIds.isEmpty()) Text("Sin eventos vinculados.")

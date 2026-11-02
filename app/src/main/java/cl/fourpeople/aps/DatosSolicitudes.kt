@@ -10,7 +10,6 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -44,7 +43,7 @@ object DatosSolicitudes {
 
     var estado by mutableStateOf(inicial)
         private set
-    private val bloqueo = Mutex()
+    private val bloqueo get() = AlmacenamientoAps.bloqueo
 
     private fun archivo(contexto: Context) =
         AtomicFile(File(contexto.filesDir, "solicitudes_funcionario.json"))
@@ -61,41 +60,7 @@ object DatosSolicitudes {
                 }
                 try {
                     val raiz = JSONObject(entrada.bufferedReader(Charsets.UTF_8).use { it.readText() })
-                    require(raiz.getInt("formato") == 1)
-                    val lista = raiz.getJSONArray("solicitudes")
-                    val solicitudes = List(lista.length()) { indice ->
-                        val dato = lista.getJSONObject(indice)
-                        SolicitudFuncionario(
-                            id = dato.getString("id"),
-                            tipo = TipoSolicitud.valueOf(dato.getString("tipo")),
-                            desde = dato.getString("desde"),
-                            hasta = dato.getString("hasta"),
-                            jornada = JornadaSolicitud.valueOf(dato.getString("jornada")),
-                            motivo = dato.getString("motivo"),
-                            creadaEn = dato.getString("creadaEn"),
-                            estado = EstadoSolicitud.valueOf(dato.getString("estado")),
-                            respuesta = dato.optString("respuesta", ""),
-
-                            // Recupera el archivo adjunto de la solicitud.
-                            archivoUri = dato.optString("archivoUri", ""),
-
-                            // Recupera quién revisó la solicitud y cuándo.
-                            // Las solicitudes antiguas pueden tener estos datos vacíos.
-                            revisadaPor = dato.optString("revisadaPor", ""),
-                            revisadaEn = dato.optString("revisadaEn", ""),
-
-
-                        ).also {
-                            require(it.id.isNotBlank())
-                            val desde = LocalDate.parse(it.desde)
-                            val hasta = LocalDate.parse(it.hasta)
-                            require(!hasta.isBefore(desde) && it.dias in 0.5..365.0)
-                        }
-                    }
-                    require(solicitudes.map { it.id }.distinct().size == solicitudes.size)
-                    val leidos = raiz.optJSONArray("leidos") ?: JSONArray()
-                    EstadoTramites(solicitudes, List(leidos.length()) { leidos.getString(it) }.toSet(),
-                        AuditoriaLocal.leer(raiz.optJSONArray("auditoria")))
+                    leer(raiz)
                 } catch (e: Exception) {
                     throw IOException("No se pudieron leer las solicitudes guardadas. Los datos se conservaron.", e)
                 }
@@ -104,8 +69,51 @@ object DatosSolicitudes {
         }
     }
 
+    internal fun leer(raiz: JSONObject): EstadoTramites {
+        require(raiz.getInt("formato") == 1)
+        val lista = raiz.getJSONArray("solicitudes")
+        val solicitudes = List(lista.length()) { indice ->
+            val dato = lista.getJSONObject(indice)
+            SolicitudFuncionario(
+                id = dato.getString("id"),
+                tipo = TipoSolicitud.valueOf(dato.getString("tipo")),
+                desde = dato.getString("desde"),
+                hasta = dato.getString("hasta"),
+                jornada = JornadaSolicitud.valueOf(dato.getString("jornada")),
+                motivo = dato.getString("motivo"),
+                creadaEn = dato.getString("creadaEn"),
+                estado = EstadoSolicitud.valueOf(dato.getString("estado")),
+                respuesta = dato.optString("respuesta", ""),
+
+                // Recupera el archivo adjunto de la solicitud.
+                archivoUri = dato.optString("archivoUri", ""),
+
+                // Recupera quién revisó la solicitud y cuándo.
+                // Las solicitudes antiguas pueden tener estos datos vacíos.
+                revisadaPor = dato.optString("revisadaPor", ""),
+                revisadaEn = dato.optString("revisadaEn", ""),
+
+
+            ).also {
+                require(it.id.isNotBlank())
+                val desde = LocalDate.parse(it.desde)
+                val hasta = LocalDate.parse(it.hasta)
+                require(!hasta.isBefore(desde) && it.dias in 0.5..365.0)
+            }
+        }
+        require(solicitudes.map { it.id }.distinct().size == solicitudes.size)
+        val leidos = raiz.optJSONArray("leidos") ?: JSONArray()
+        return EstadoTramites(solicitudes, List(leidos.length()) { leidos.getString(it) }.toSet(),
+            AuditoriaLocal.leer(raiz.optJSONArray("auditoria")))
+    }
+
+    suspend fun asegurarPersistencia(contexto: Context) = bloqueo.withLock {
+        if (!File(contexto.filesDir, "solicitudes_funcionario.json").exists()) guardar(contexto, estado)
+    }
+
     suspend fun enviar(contexto: Context, solicitud: SolicitudFuncionario) {
         bloqueo.withLock {
+            ControlAcceso.exigir(contexto, "solicitudes.propias", propio = true)
             require(solicitud.estado == EstadoSolicitud.EN_REVISION)
             require(estado.solicitudes.none { it.id == solicitud.id })
             ReglasSolicitudes.validar(solicitud, estado.solicitudes)
@@ -134,6 +142,7 @@ object DatosSolicitudes {
         respuesta: String
     ) {
         // Comprueba el permiso antes de modificar los datos.
+        ControlAcceso.exigir(contexto, "solicitudes.resolver", expediente = true)
         require(perfil == "Jefatura") {
             "Solo Jefatura puede resolver solicitudes."
         }
@@ -169,8 +178,7 @@ object DatosSolicitudes {
                         },
                         respuesta = respuestaLimpia,
 
-                        // Usuario fijo de la sesión de demostración.
-                        revisadaPor = "jefatura",
+                        revisadaPor = requireNotNull(ControlAcceso.perfil(contexto)).usuario,
                         revisadaEn = java.time.LocalDateTime.now().toString()
                     )
                 }

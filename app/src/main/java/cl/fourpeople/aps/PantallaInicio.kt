@@ -30,19 +30,23 @@ fun PantallaInicio(
     onNuevaSolicitud: () -> Unit,
     onNavegar: (String) -> Unit
 ) {
+    val contexto = androidx.compose.ui.platform.LocalContext.current
+    val puedeDocumentos = ControlAcceso.puede(contexto, "documentos.propios", propio = true)
+    val puedeSolicitudes = ControlAcceso.puede(contexto, "solicitudes.propias", propio = true)
+    val documentosVisibles = if (puedeDocumentos) DatosFuncionario.documentosActivos else emptyList()
     var mostrarCarga by rememberSaveable {
         mutableStateOf(false)
     }
 
-    val pendientes = DatosFuncionario.documentosActivos.count {
+    val pendientes = documentosVisibles.count {
         it.estado == EstadoDocumento.PENDIENTE
     }
 
-    val rechazados = DatosFuncionario.documentosActivos.count {
+    val rechazados = documentosVisibles.count {
         it.estado == EstadoDocumento.RECHAZADO
     }
 
-    val rechazado = DatosFuncionario.documentosActivos.firstOrNull {
+    val rechazado = documentosVisibles.firstOrNull {
         it.estado == EstadoDocumento.RECHAZADO
     }
 
@@ -95,7 +99,7 @@ fun PantallaInicio(
                 Column(Modifier.weight(1f)) {
                     Text(
                         // El saludo usa el primer nombre del expediente guardado.
-                        "Hola, ${DatosAdministracion.estado.expediente.nombre.substringBefore(' ')}",
+                        "Hola, ${ControlAcceso.perfil(contexto)?.nombre?.substringBefore(' ').orEmpty()}",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -137,7 +141,7 @@ fun PantallaInicio(
                 )
 
                 ResumenInicio(
-                    DatosSolicitudes.estado.solicitudes.count {
+                    (if (puedeSolicitudes) DatosSolicitudes.estado.solicitudes else emptyList()).count {
                         it.estado == EstadoSolicitud.EN_REVISION
                     }.toString(),
                     "Solicitud en curso",
@@ -183,6 +187,7 @@ fun PantallaInicio(
                 detalle = "Selecciona un PDF o una imagen",
                 icono = android.R.drawable.ic_menu_upload,
                 destacado = true,
+                habilitado = puedeDocumentos,
                 onClick = {
                     mostrarCarga = true
                 }
@@ -192,6 +197,7 @@ fun PantallaInicio(
                 titulo = "Nueva solicitud",
                 detalle = "Permisos, feriado legal y otros trámites",
                 icono = android.R.drawable.ic_menu_today,
+                habilitado = puedeSolicitudes,
                 onClick = onNuevaSolicitud
             )
 
@@ -219,7 +225,7 @@ fun PantallaInicio(
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                val recientes = DatosFuncionario.documentosActivos.take(2)
+                val recientes = documentosVisibles.take(2)
 
                 recientes.forEachIndexed { indice, documento ->
                     val (fondo, color) = when (documento.estado) {
@@ -297,6 +303,7 @@ private fun AccesoInicio(
     detalle: String,
     icono: Int,
     destacado: Boolean = false,
+    habilitado: Boolean = true,
     onClick: (() -> Unit)? = null
 ) {
     Card(
@@ -304,7 +311,7 @@ private fun AccesoInicio(
             .fillMaxWidth()
             .then(
                 if (onClick != null) {
-                    Modifier.clickable(onClick = onClick)
+                    Modifier.clickable(enabled = habilitado, onClick = onClick)
                 } else {
                     Modifier
                 }

@@ -58,8 +58,8 @@ object ReglasSolicitudes {
         reservarPendientes: Boolean = true
     ): Double {
         val total = when (tipo) {
-            TipoSolicitud.ADMINISTRATIVO -> 6.0
-            TipoSolicitud.FERIADO -> 15.0
+            TipoSolicitud.ADMINISTRATIVO -> DatosUsuarios.estado.saldos.administrativos.toDouble()
+            TipoSolicitud.FERIADO -> DatosUsuarios.estado.saldos.feriado.toDouble()
             else -> return Double.POSITIVE_INFINITY
         }
         val usados = solicitudes.filter {

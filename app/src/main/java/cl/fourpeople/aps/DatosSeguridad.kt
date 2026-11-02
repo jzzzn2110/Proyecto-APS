@@ -8,7 +8,6 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -17,7 +16,7 @@ import org.json.JSONObject
 object DatosSeguridad {
     var estado by mutableStateOf(EstadoSeguridad())
         private set
-    private val bloqueo = Mutex()
+    private val bloqueo get() = AlmacenamientoAps.bloqueo
     private fun archivo(contexto: Context) = AtomicFile(File(contexto.filesDir, "seguridad_ti.json"))
 
     suspend fun cargar(contexto: Context) {
@@ -30,30 +29,7 @@ object DatosSeguridad {
                 }
                 try {
                     val raiz = entrada.bufferedReader(Charsets.UTF_8).use { JSONObject(it.readText()) }
-                    require(raiz.getInt("formato") == 1)
-                    val datos = raiz.getJSONArray("incidentes")
-                    val incidentes = List(datos.length()) { i ->
-                        val d = datos.getJSONObject(i)
-                        val ids = d.getJSONArray("eventos")
-                        val historia = d.getJSONArray("seguimiento")
-                        IncidenteSeguridad(id = d.getString("id"), titulo = d.getString("titulo"),
-                            descripcion = d.getString("descripcion"), usuario = d.getString("usuario"),
-                            prioridad = PrioridadIncidente.valueOf(d.getString("prioridad")),
-                            estado = EstadoIncidente.valueOf(d.getString("estado")), fecha = d.getString("fecha"),
-                            eventosIds = List(ids.length()) { ids.getString(it) }.toSet(),
-                            seguimiento = List(historia.length()) { j -> historia.getJSONObject(j).let {
-                                SeguimientoIncidente(it.getString("fecha"), it.getString("responsable"),
-                                    it.getString("accion"), it.getString("observacion"))
-                            } }).also {
-                            require(it.id.isNotBlank() && it.titulo.isNotBlank() && it.usuario.isNotBlank())
-                            LocalDateTime.parse(it.fecha)
-                            it.seguimiento.forEach { paso -> LocalDateTime.parse(paso.fecha) }
-                        }
-                    }
-                    require(incidentes.map { it.id }.distinct().size == incidentes.size)
-                    val cuentas = raiz.getJSONArray("bloqueadas")
-                    EstadoSeguridad(incidentes, List(cuentas.length()) { cuentas.getString(it) }.toSet(),
-                        AuditoriaLocal.leer(raiz.getJSONArray("auditoria")))
+                    leer(raiz)
                 } catch (e: Exception) {
                     throw IOException("No se pudieron leer los incidentes y bloqueos. Los datos se conservaron.", e)
                 }
@@ -62,12 +38,38 @@ object DatosSeguridad {
         }
     }
 
-    fun tieneAcceso(contexto: Context): Boolean {
-        val preferencias = contexto.getSharedPreferences("sesion_local", Context.MODE_PRIVATE)
-        val usuario = preferencias.getString("usuario", "") ?: ""
-        return preferencias.getString("rol", "") == "TI / Admin" && usuario !in estado.bloqueadas &&
-            PerfilesCompartidos.perfiles.any { it.usuario == usuario && it.rol == RolUsuario.TI }
+    internal fun leer(raiz: JSONObject): EstadoSeguridad {
+        require(raiz.getInt("formato") == 1)
+        val datos = raiz.getJSONArray("incidentes")
+        val incidentes = List(datos.length()) { i ->
+            val d = datos.getJSONObject(i)
+            val ids = d.getJSONArray("eventos")
+            val historia = d.getJSONArray("seguimiento")
+            IncidenteSeguridad(id = d.getString("id"), titulo = d.getString("titulo"),
+                descripcion = d.getString("descripcion"), usuario = d.getString("usuario"),
+                prioridad = PrioridadIncidente.valueOf(d.getString("prioridad")),
+                estado = EstadoIncidente.valueOf(d.getString("estado")), fecha = d.getString("fecha"),
+                eventosIds = List(ids.length()) { ids.getString(it) }.toSet(),
+                seguimiento = List(historia.length()) { j -> historia.getJSONObject(j).let {
+                    SeguimientoIncidente(it.getString("fecha"), it.getString("responsable"),
+                        it.getString("accion"), it.getString("observacion"))
+                } }).also {
+                require(it.id.isNotBlank() && it.titulo.isNotBlank() && it.usuario.isNotBlank())
+                LocalDateTime.parse(it.fecha)
+                it.seguimiento.forEach { paso -> LocalDateTime.parse(paso.fecha) }
+            }
+        }
+        require(incidentes.map { it.id }.distinct().size == incidentes.size)
+        val cuentas = raiz.getJSONArray("bloqueadas")
+        return EstadoSeguridad(incidentes, List(cuentas.length()) { cuentas.getString(it) }.toSet(),
+            AuditoriaLocal.leer(raiz.getJSONArray("auditoria")))
     }
+
+    suspend fun asegurarPersistencia(contexto: Context) = bloqueo.withLock {
+        if (!File(contexto.filesDir, "seguridad_ti.json").exists()) guardar(contexto, estado)
+    }
+
+    fun tieneAcceso(contexto: Context): Boolean = ControlAcceso.puede(contexto, "incidentes.gestionar")
 
     private fun autorizar(contexto: Context): String {
         require(tieneAcceso(contexto)) { "Se requiere una cuenta activa de TI." }
@@ -114,6 +116,9 @@ object DatosSeguridad {
         require(original.usuario != responsable) { "No puedes bloquear o reactivar tu propia cuenta desde un incidente." }
         require(motivo.trim().length in 10..1000) { "El motivo debe tener entre 10 y 1000 caracteres." }
         require((original.usuario in estado.bloqueadas) != bloquearCuenta) { "El estado de la cuenta ya cambió. Vuelve a abrir el incidente." }
+        if (bloquearCuenta) require(PerfilesCompartidos.perfiles.any {
+            it.usuario != original.usuario && it.activa && it.usuario !in estado.bloqueadas && it.rol == RolUsuario.TI && "usuarios.gestionar" in it.permisos
+        }) { "Debe quedar una cuenta activa con permiso para administrar usuarios." }
         val accion = if (bloquearCuenta) "Bloqueó cuenta" else "Reactivó cuenta"
         val nuevo = original.copy(seguimiento = original.seguimiento +
             SeguimientoIncidente(LocalDateTime.now().toString(), responsable, accion, motivo.trim()))

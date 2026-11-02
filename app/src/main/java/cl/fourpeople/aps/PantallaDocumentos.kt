@@ -28,6 +28,12 @@ fun PantallaDocumentos(
     onNavegar: (String) -> Unit,
     documentoInicialId: String? = null
 ) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "documentos.propios", propio = true)) {
+        AccesoDenegado(onVolver)
+        return
+    }
+
     var mostrarCarga by rememberSaveable {
         mutableStateOf(false)
     }
@@ -323,6 +329,7 @@ fun PantallaDocumentos(
                     EtiquetaEstado(vista.estado)
                     key(vista.version) {
                         VistaPreviaDocumento(uri = vista.archivoUri)
+                        DescargarDocumento(vista)
                     }
                     Text("Nombre: ${vista.nombre}")
                     Text("Categoría: ${vista.categoria}")

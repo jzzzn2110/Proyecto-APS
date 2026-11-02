@@ -45,7 +45,7 @@ object AccesoCuentas {
             it.usuario == usuario.trim() && rolTexto(it.rol) == rol
         }
         if (cuenta == null || clave != "Contraseña123#") return "Usuario o contraseña incorrectos."
-        return if (cuenta.usuario in bloqueadas) "Cuenta bloqueada. Contacta al administrador de TI." else null
+        return if (!cuenta.activa || cuenta.usuario in bloqueadas) "Cuenta bloqueada. Contacta al administrador de TI." else null
     }
 }
 

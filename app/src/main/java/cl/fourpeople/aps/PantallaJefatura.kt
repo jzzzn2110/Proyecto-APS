@@ -22,6 +22,12 @@ fun PantallaJefatura(
     perfil: String,
     onSalir: () -> Unit
 ) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "expedientes.leer", expediente = true)) {
+        AccesoDenegado(onSalir)
+        return
+    }
+
     // Permite acceder al almacenamiento del teléfono.
     val contexto = LocalContext.current.applicationContext
 
@@ -271,7 +277,7 @@ fun PantallaJefatura(
                     }
 
                     // Solo las solicitudes pendientes se pueden resolver.
-                    if (item.estado == EstadoSolicitud.EN_REVISION) {
+                    if (item.estado == EstadoSolicitud.EN_REVISION && ControlAcceso.puede(contexto, "solicitudes.resolver", expediente = true)) {
                         OutlinedTextField(
                             value = respuesta,
                             onValueChange = {

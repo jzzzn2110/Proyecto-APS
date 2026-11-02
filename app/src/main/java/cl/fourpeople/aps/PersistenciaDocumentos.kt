@@ -6,7 +6,6 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -15,7 +14,7 @@ import org.json.JSONObject
 // guardado: conserva documentos y expediente en el teléfono.
 object PersistenciaDocumentos {
     // Una lectura o escritura a la vez.
-    private val bloqueo = Mutex()
+    private val bloqueo get() = AlmacenamientoAps.bloqueo
     // Archivo privado de la app. No cambia al editar los textos de pantalla.
     private fun archivo(c: Context) = AtomicFile(File(c.filesDir, "expediente_funcionario.json"))
 
@@ -105,6 +104,15 @@ object PersistenciaDocumentos {
             }
         }
     }
+    internal fun validarRespaldo(raiz: JSONObject) {
+        require(raiz.getInt("formato") == 1)
+        val datos = raiz.getJSONArray("documentos")
+        val lista = List(datos.length()) { leer(datos.getJSONObject(it)) }
+        require(lista.map { it.id }.distinct().size == lista.size)
+        CodecAdministracion.leer(raiz.optJSONObject("administracion"))
+        AuditoriaLocal.leer(raiz.optJSONArray("auditoria"))
+    }
+
     suspend fun registrarAuditoria(contexto: Context, evento: EventoAuditoria) {
         withContext(Dispatchers.IO) {
             bloqueo.withLock {

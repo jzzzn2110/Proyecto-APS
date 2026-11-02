@@ -44,6 +44,12 @@ fun PantallaSolicitudes(
     onNueva: () -> Unit,
     solicitudInicialId: String? = null
 ) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "solicitudes.propias", propio = true)) {
+        AccesoDenegado({ onNavegar("inicio") })
+        return
+    }
+
     var filtro by rememberSaveable { mutableStateOf("Todas") }
     var seleccionadoId by rememberSaveable(solicitudInicialId) {
         mutableStateOf(solicitudInicialId)

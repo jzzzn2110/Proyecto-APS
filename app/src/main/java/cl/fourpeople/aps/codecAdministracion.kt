@@ -23,7 +23,7 @@ object CodecAdministracion {
         } })
         put("expediente", JSONObject().apply {
             val e = estado.expediente
-            put("nombre", e.nombre); put("run", e.run); put("centro", e.centro)
+            put("usuario", e.usuario); put("nombre", e.nombre); put("run", e.run); put("centro", e.centro)
             put("cargo", e.cargo); put("contrato", e.contrato); put("ingreso", e.ingreso)
         })
     }
@@ -49,6 +49,6 @@ object CodecAdministracion {
         return EstadoAdministracion(bajas = bajas, cambios = cambios, expediente = ExpedienteLaboral(
             e.optString("nombre", base.nombre), e.optString("run", base.run),
             e.optString("centro", base.centro), e.optString("cargo", base.cargo),
-            e.optString("contrato", base.contrato), e.optString("ingreso", base.ingreso)))
+            e.optString("contrato", base.contrato), e.optString("ingreso", base.ingreso), e.optString("usuario", base.usuario)))
     }
 }

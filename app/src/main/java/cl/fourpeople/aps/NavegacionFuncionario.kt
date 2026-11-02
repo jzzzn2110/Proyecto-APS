@@ -12,11 +12,17 @@ fun NavegacionFuncionario(actual: String, onNavegar: (String) -> Unit) {
     val nombres = listOf("Inicio", "Documentos", "Solicitudes", "Avisos")
     val iconos = listOf(android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_agenda,
         android.R.drawable.ic_menu_today, android.R.drawable.ic_dialog_info)
-    val sinLeer = avisosFuncionario().count { it.id !in DatosSolicitudes.estado.avisosLeidos }
+    val contexto = androidx.compose.ui.platform.LocalContext.current
+    val sinLeer = ControlAcceso.avisos(contexto).count { it.id !in DatosSolicitudes.estado.avisosLeidos }
     NavigationBar(containerColor = Color.White) {
         destinos.forEachIndexed { indice, destino ->
             NavigationBarItem(
                 selected = actual == destino,
+                enabled = when (destino) {
+                    "documentos" -> ControlAcceso.puede(contexto, "documentos.propios", propio = true)
+                    "solicitudes" -> ControlAcceso.puede(contexto, "solicitudes.propias", propio = true)
+                    else -> true
+                },
                 onClick = { if (actual != destino) onNavegar(destino) },
                 icon = {
                     BadgedBox(badge = {

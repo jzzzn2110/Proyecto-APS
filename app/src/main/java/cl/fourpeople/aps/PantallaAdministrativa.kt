@@ -200,6 +200,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
             text = {
                 Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    RegistrarConsulta(original)
                     Text("${original.categoria} · ${original.fecha} · ${original.estado.texto}")
                     original.horas?.let { Text("Horas: $it") }
                     VistaPreviaDocumento(original.archivoUri)

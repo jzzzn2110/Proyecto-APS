@@ -18,7 +18,8 @@ import org.json.JSONObject
 
 data class EstadoTramites(
     val solicitudes: List<SolicitudFuncionario>,
-    val avisosLeidos: Set<String> = emptySet()
+    val avisosLeidos: Set<String> = emptySet(),
+    val auditoria: List<EventoAuditoria> = emptyList()
 )
 
 object DatosSolicitudes {
@@ -93,7 +94,8 @@ object DatosSolicitudes {
                     }
                     require(solicitudes.map { it.id }.distinct().size == solicitudes.size)
                     val leidos = raiz.optJSONArray("leidos") ?: JSONArray()
-                    EstadoTramites(solicitudes, List(leidos.length()) { leidos.getString(it) }.toSet())
+                    EstadoTramites(solicitudes, List(leidos.length()) { leidos.getString(it) }.toSet(),
+                        AuditoriaLocal.leer(raiz.optJSONArray("auditoria")))
                 } catch (e: Exception) {
                     throw IOException("No se pudieron leer las solicitudes guardadas. Los datos se conservaron.", e)
                 }
@@ -107,7 +109,9 @@ object DatosSolicitudes {
             require(solicitud.estado == EstadoSolicitud.EN_REVISION)
             require(estado.solicitudes.none { it.id == solicitud.id })
             ReglasSolicitudes.validar(solicitud, estado.solicitudes)
-            val siguiente = estado.copy(solicitudes = listOf(solicitud) + estado.solicitudes)
+            val evento = AuditoriaLocal.evento(contexto, solicitud.id, solicitud.tipo.texto, "Solicitó")
+            val siguiente = estado.copy(solicitudes = listOf(solicitud) + estado.solicitudes,
+                auditoria = estado.auditoria + evento)
             guardar(contexto, siguiente)
             estado = siguiente
         }
@@ -172,7 +176,9 @@ object DatosSolicitudes {
                 }
             }
 
-            val siguiente = estado.copy(solicitudes = actualizadas)
+            val evento = AuditoriaLocal.evento(contexto, original.id, original.tipo.texto,
+                if (aprobar) "Aprobó solicitud" else "Rechazó solicitud", detalle = respuestaLimpia)
+            val siguiente = estado.copy(solicitudes = actualizadas, auditoria = estado.auditoria + evento)
 
             // Primero guarda en el teléfono y luego actualiza la pantalla.
             guardar(contexto, siguiente)
@@ -205,6 +211,7 @@ object DatosSolicitudes {
             }
             val contenido = JSONObject().apply {
                 put("formato", 1)
+                put("auditoria", AuditoriaLocal.escribir(datos.auditoria))
                 put("solicitudes", solicitudes)
                 put("leidos", JSONArray(datos.avisosLeidos.toList()))
             }.toString().toByteArray(Charsets.UTF_8)

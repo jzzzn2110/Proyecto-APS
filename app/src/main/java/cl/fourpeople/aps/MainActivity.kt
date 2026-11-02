@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
                         DatosFuncionario.documentos.clear()
                         DatosFuncionario.documentos.addAll(guardados)
 
+                        PersistenciaDocumentos.guardar(applicationContext, guardados)
                         DatosSolicitudes.cargar(applicationContext)
                         preparado = true
                     } catch (e: CancellationException) {
@@ -134,6 +135,12 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         // Administrativo y Jefatura entran a su propia pantalla.
+                    } else if (sesionIniciada && perfilActual == "TI / Admin") {
+                        PantallaAuditoria {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            navegar("inicio")
+                        }
                     } else if (sesionIniciada && perfilActual != "Funcionario") {
                         PantallaAdministrativa(perfilActual) {
                             sesionIniciada = false
@@ -190,9 +197,9 @@ class MainActivity : ComponentActivity() {
                     } else {
                         PantallaLogin(
                             // El login devuelve el perfil seleccionado
-                            onIngresar = { perfil ->
+                            onIngresar = { perfil, usuario ->
                                 perfilActual = perfil
-                                SesionLocal.guardar(applicationContext, usuario = perfil.lowercase(), rol = perfil)
+                                SesionLocal.guardar(applicationContext, usuario = usuario, rol = perfil)
                                 pantallaActual = "inicio"
                                 sesionIniciada = true
                             }
@@ -206,7 +213,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 // login de prueba: aquí están el formulario y la validación de las cuentas ficticias.
-private fun PantallaLogin(onIngresar: (String) -> Unit) {
+private fun PantallaLogin(onIngresar: (String, String) -> Unit) {
     var usuario by rememberSaveable {
         mutableStateOf("")
     }
@@ -354,18 +361,14 @@ private fun PantallaLogin(onIngresar: (String) -> Unit) {
                             error = "Completa el usuario y la contraseña."
                         }
 
-                        rol == "TI / Admin" -> {
-                            error = "En esta etapa está disponible " +
-                                    "Funcionario, Administrativo y Jefatura."
-                        }
-
                         // cuenta de prueba: usuario distinto según el perfil.
                         usuario.trim() == when (rol) {
                             "Administrativo" -> "administrativo"
                             "Jefatura" -> "jefatura"
+                            "TI / Admin" -> "d.herrera"
                             else -> "c.rojas"
                         } && clave == "Contraseña123#" -> {
-                            onIngresar(rol)
+                            onIngresar(rol, usuario.trim())
                         }
 
                         else -> {

@@ -283,6 +283,7 @@ fun PantallaDocumentos(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    RegistrarConsulta(vista)
                     Text("Identificador: ${documento.id}", fontSize = 12.sp)
                     Text(
                         if (vista.version == documento.version) {

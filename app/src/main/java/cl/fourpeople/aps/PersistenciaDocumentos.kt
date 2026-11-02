@@ -54,6 +54,7 @@ object PersistenciaDocumentos {
                 val entrada = try { almacenamiento.openRead() } catch (e: FileNotFoundException) {
                     if (almacenamiento.baseFile.exists()) throw e
                     // Primera ejecución: usa los documentos de demostración.
+                    AuditoriaLocal.eventosDocumentales = emptyList()
                     return@withLock iniciales.toList() to EstadoAdministracion()
                 }
                 try {
@@ -63,6 +64,7 @@ object PersistenciaDocumentos {
                     val datos = raiz.getJSONArray("documentos")
                     val lista = List(datos.length()) { leer(datos.getJSONObject(it)) }
                     require(lista.map { it.id }.distinct().size == lista.size)
+                    AuditoriaLocal.eventosDocumentales = AuditoriaLocal.leer(raiz.optJSONArray("auditoria"))
                     lista to CodecAdministracion.leer(raiz.optJSONObject("administracion"))
                 } catch (e: Exception) {
                     throw IOException("No se pudo leer el expediente. Los datos se conservaron.", e)
@@ -80,10 +82,12 @@ object PersistenciaDocumentos {
         val copia = documentos.toList()
         withContext(Dispatchers.IO) {
             bloqueo.withLock {
+                val eventos = AuditoriaLocal.eventosDocumentales + AuditoriaLocal.cambios(contexto, copia, administracion)
                 val contenido = JSONObject().apply {
                     put("formato", 1)
                     put("documentos", JSONArray().apply { copia.forEach { put(escribir(it)) } })
                     put("administracion", CodecAdministracion.escribir(administracion))
+                    put("auditoria", AuditoriaLocal.escribir(eventos))
                 }.toString().toByteArray(Charsets.UTF_8)
                 val almacenamiento = archivo(contexto)
                 // AtomicFile conserva la copia anterior si falla la escritura.
@@ -92,6 +96,7 @@ object PersistenciaDocumentos {
                     salida.write(contenido)
                     // Confirma el archivo nuevo cuando terminó de escribirse.
                     almacenamiento.finishWrite(salida)
+                    AuditoriaLocal.eventosDocumentales = eventos
                 } catch (e: Exception) {
                     // Si falla, recupera la copia anterior y muestra el error.
                     almacenamiento.failWrite(salida)
@@ -100,4 +105,24 @@ object PersistenciaDocumentos {
             }
         }
     }
+    suspend fun registrarAuditoria(contexto: Context, evento: EventoAuditoria) {
+        withContext(Dispatchers.IO) {
+            bloqueo.withLock {
+                val almacenamiento = archivo(contexto)
+                val raiz = almacenamiento.openRead().bufferedReader(Charsets.UTF_8).use { JSONObject(it.readText()) }
+                val eventos = AuditoriaLocal.leer(raiz.optJSONArray("auditoria")) + evento
+                raiz.put("auditoria", AuditoriaLocal.escribir(eventos))
+                val salida = almacenamiento.startWrite()
+                try {
+                    salida.write(raiz.toString().toByteArray(Charsets.UTF_8))
+                    almacenamiento.finishWrite(salida)
+                    AuditoriaLocal.eventosDocumentales = eventos
+                } catch (e: Exception) {
+                    almacenamiento.failWrite(salida)
+                    throw IOException("No se pudo registrar la auditoría.", e)
+                }
+            }
+        }
+    }
+
 }

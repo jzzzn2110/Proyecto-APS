@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
                 // Recuerda el perfil elegido al ingresar.
                 var perfilActual by rememberSaveable { mutableStateOf("Funcionario") }
+                var usuarioActual by rememberSaveable { mutableStateOf("") }
 
                 // Indica qué pantalla del funcionario se muestra.
                 var pantallaActual by rememberSaveable {
@@ -89,12 +90,21 @@ class MainActivity : ComponentActivity() {
 
                         PersistenciaDocumentos.guardar(applicationContext, guardados)
                         DatosSolicitudes.cargar(applicationContext)
+                        DatosSeguridad.cargar(applicationContext)
                         preparado = true
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         errorCarga = e.message
                             ?: "No se pudo abrir el expediente."
+                    }
+                }
+
+                LaunchedEffect(preparado, sesionIniciada, usuarioActual, DatosSeguridad.estado.bloqueadas) {
+                    if (preparado && sesionIniciada && usuarioActual in DatosSeguridad.estado.bloqueadas) {
+                        sesionIniciada = false
+                        SesionLocal.limpiar(applicationContext)
+                        navegar("inicio")
                     }
                 }
 
@@ -199,6 +209,7 @@ class MainActivity : ComponentActivity() {
                             // El login devuelve el perfil seleccionado
                             onIngresar = { perfil, usuario ->
                                 perfilActual = perfil
+                                usuarioActual = usuario
                                 SesionLocal.guardar(applicationContext, usuario = usuario, rol = perfil)
                                 pantallaActual = "inicio"
                                 sesionIniciada = true
@@ -356,25 +367,8 @@ private fun PantallaLogin(onIngresar: (String, String) -> Unit) {
 
             Button(
                 onClick = {
-                    when {
-                        usuario.isBlank() || clave.isBlank() -> {
-                            error = "Completa el usuario y la contraseña."
-                        }
-
-                        // cuenta de prueba: usuario distinto según el perfil.
-                        usuario.trim() == when (rol) {
-                            "Administrativo" -> "administrativo"
-                            "Jefatura" -> "jefatura"
-                            "TI / Admin" -> "d.herrera"
-                            else -> "c.rojas"
-                        } && clave == "Contraseña123#" -> {
-                            onIngresar(rol, usuario.trim())
-                        }
-
-                        else -> {
-                            error = "Usuario o contraseña incorrectos."
-                        }
-                    }
+                    val problema = AccesoCuentas.errorIngreso(usuario, clave, rol, DatosSeguridad.estado.bloqueadas)
+                    if (problema == null) onIngresar(rol, usuario.trim()) else error = problema
                 },
                 modifier = Modifier
                     .fillMaxWidth()

@@ -18,6 +18,7 @@ object PerfilesCompartidos {
     val perfiles = listOf(
         PerfilUsuario("c.rojas", "Camila Rojas Soto", RolUsuario.FUNCIONARIO, "CESFAM Norte", "DEMO-CAMILA", setOf("documentos.propios", "solicitudes.propias")),
         PerfilUsuario("administrativo", "Administrativo APS", RolUsuario.ADMINISTRATIVO, "CESFAM Norte", permisos = setOf("expedientes.leer", "documentos.revisar", "documentos.baja")),
+        PerfilUsuario("d.herrera", "Diego Herrera", RolUsuario.TI, "Nivel central", permisos = setOf("auditoria.leer", "incidentes.gestionar")),
         PerfilUsuario("jefatura", "Jefatura CESFAM Norte", RolUsuario.JEFATURA, "CESFAM Norte", permisos = setOf("solicitudes.resolver", "expedientes.leer"))
     )
     fun buscar(usuario: String, rol: String) = perfiles.firstOrNull {

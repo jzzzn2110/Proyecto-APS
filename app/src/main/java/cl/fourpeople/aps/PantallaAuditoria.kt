@@ -33,22 +33,35 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val FondoTi = Color(0xFFF5F7F4)
-private val VerdeTi = Color(0xFF115D55)
+internal val FondoTi = Color(0xFFF5F7F4)
+internal val VerdeTi = Color(0xFF115D55)
 
 @Composable
 fun PantallaAuditoria(onSalir: () -> Unit) {
+    var seccion by rememberSaveable { mutableStateOf("auditoria") }
+    var incidenteObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
+    var eventoObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
     MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(
         primary = VerdeTi, secondaryContainer = Color(0xFFDDEFEA), onSecondaryContainer = VerdeTi,
         outline = Color(0xFFCBD4CE), outlineVariant = Color(0xFFDEE5DF)
-    )) { ContenidoAuditoria(onSalir) }
+    )) {
+        if (seccion == "incidentes") {
+            PantallaIncidentes(onSalir, onAuditoria = {
+                seccion = "auditoria"; incidenteObjetivo = null; eventoObjetivo = null
+            }, incidenteInicialId = incidenteObjetivo, eventoInicialId = eventoObjetivo)
+        } else ContenidoAuditoria(onSalir,
+            onIncidentes = { incidenteObjetivo = null; eventoObjetivo = null; seccion = "incidentes" },
+            onAbrirIncidente = { incidenteObjetivo = it; eventoObjetivo = null; seccion = "incidentes" },
+            onVincular = { eventoObjetivo = it.id; incidenteObjetivo = null; seccion = "incidentes" })
+    }
 }
 
 @Composable
-private fun ContenidoAuditoria(onSalir: () -> Unit) {
+private fun ContenidoAuditoria(onSalir: () -> Unit, onIncidentes: () -> Unit,
+                                 onAbrirIncidente: (String) -> Unit, onVincular: (EventoAuditoria) -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
-    val esTi = contexto.getSharedPreferences("sesion_local", 0).getString("rol", "") == "TI / Admin"
+    val esTi = DatosSeguridad.tieneAcceso(contexto)
     if (!esTi) {
         Column(Modifier.safeDrawingPadding().padding(24.dp)) {
             Text("Se requiere una sesión de TI para consultar la auditoría.")
@@ -118,14 +131,7 @@ private fun ContenidoAuditoria(onSalir: () -> Unit) {
                         shape = RoundedCornerShape(18.dp)) { Text("Exportar reporte de auditoría") }
                 }
             } else {
-                NavigationBar(containerColor = Color.White) {
-                    NavigationBarItem(selected = true, onClick = { verBajas = false },
-                        icon = { IconoTi("auditoria") }, label = { Text("Auditoría") })
-                    NavigationBarItem(selected = false, enabled = false, onClick = {},
-                        icon = { IconoTi("incidentes") }, label = { Text("Incidentes") })
-                    NavigationBarItem(selected = false, enabled = false, onClick = {},
-                        icon = { IconoTi("usuarios") }, label = { Text("Usuarios") })
-                }
+                NavegacionTi("auditoria", {}, onIncidentes, !exportando && csvPendiente == null)
             }
         }) { espacio ->
         Column(Modifier.fillMaxSize().padding(espacio).verticalScroll(rememberScrollState()).padding(20.dp),
@@ -198,6 +204,14 @@ private fun ContenidoAuditoria(onSalir: () -> Unit) {
                         SelectorTi("Acción", accion, listOf("Todas") + eventos.map { it.accion }.distinct().sorted(), Modifier.weight(1f)) { accion = it }
                         SelectorTi("Período", periodo, listOf("Hoy", "Últimos 7 días", "Últimos 30 días", "Todo el historial"), Modifier.weight(1f)) { periodo = it }
                     }
+                    val abiertos = DatosSeguridad.estado.incidentes.count { it.estado != EstadoIncidente.CERRADO }
+                    if (abiertos > 0) {
+                        Card(onClick = onIncidentes, colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEED0)),
+                            modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                            Text("$abiertos incidentes pendientes · Ver incidentes ›", Modifier.padding(18.dp),
+                                fontWeight = FontWeight.Bold, color = Color(0xFF8B5200))
+                        }
+                    }
                     OutlinedButton(onClick = { verBajas = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("Consultar bajas documentales (${DatosAdministracion.estado.bajas.size})")
                     }
@@ -209,7 +223,13 @@ private fun ContenidoAuditoria(onSalir: () -> Unit) {
                     if (filtrados.isEmpty()) Text("No hay eventos que coincidan con los filtros. Las nuevas acciones realizadas en la aplicación aparecerán aquí.")
                     filtrados.forEach { evento ->
                         val esDocumento = DatosFuncionario.documentos.any { it.id == evento.entidadId }
-                        EventoTi(evento, esDocumento) { documentoId = evento.entidadId }
+                        val esIncidente = DatosSeguridad.estado.incidentes.any { it.id == evento.entidadId }
+                        EventoTi(evento, esDocumento || esIncidente) {
+                            if (esIncidente) onAbrirIncidente(evento.entidadId) else documentoId = evento.entidadId
+                        }
+                        if (PerfilesCompartidos.perfiles.any { it.usuario == evento.usuario }) {
+                            TextButton(onClick = { onVincular(evento) }) { Text("Vincular a incidente") }
+                        }
                     }
                 }
             }
@@ -228,7 +248,7 @@ private fun EventoTi(evento: EventoAuditoria, abrir: Boolean, onAbrir: () -> Uni
             Text("${evento.usuario} · ${evento.entidad}", fontWeight = FontWeight.SemiBold)
             Text("${evento.rol} · Android · ${evento.resultado}", fontSize = 13.sp, color = Color(0xFF566861))
             if (evento.detalle.isNotBlank()) Text(evento.detalle, fontSize = 13.sp)
-            if (abrir) Text("Ver historial del documento ›", color = VerdeTi, fontSize = 13.sp)
+            if (abrir) Text(if (evento.categoria == "Incidente") "Ver incidente ›" else "Ver historial del documento ›", color = VerdeTi, fontSize = 13.sp)
         }
     }
 }
@@ -241,12 +261,12 @@ private fun TarjetaTi(contenido: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun SelectorTi(titulo: String, valor: String, opciones: List<String>, modifier: Modifier, onElegir: (String) -> Unit) {
+internal fun SelectorTi(titulo: String, valor: String, opciones: List<String>, modifier: Modifier, habilitado: Boolean = true, onElegir: (String) -> Unit) {
     var abierto by remember { mutableStateOf(false) }
     Column(modifier) {
         Text(titulo, fontWeight = FontWeight.SemiBold, color = Color(0xFF566861))
         Box {
-            OutlinedButton(onClick = { abierto = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            OutlinedButton(onClick = { abierto = true }, enabled = habilitado, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Text(valor, modifier = Modifier.weight(1f)); Text("⌄")
             }
             DropdownMenu(expanded = abierto, onDismissRequest = { abierto = false }) {
@@ -281,5 +301,17 @@ private fun IconoTi(tipo: String, color: Color = LocalContentColor.current) {
                 drawLine(color, Offset(w * .8f, h * .6f), Offset(w * .92f, h * .88f), strokeWidth = 2.dp.toPx())
             }
         }
+    }
+}
+
+@Composable
+internal fun NavegacionTi(actual: String, onAuditoria: () -> Unit, onIncidentes: () -> Unit, habilitado: Boolean = true) {
+    NavigationBar(containerColor = Color.White) {
+        NavigationBarItem(selected = actual == "auditoria", enabled = habilitado, onClick = onAuditoria,
+            icon = { IconoTi("auditoria") }, label = { Text("Auditoría") })
+        NavigationBarItem(selected = actual == "incidentes", enabled = habilitado, onClick = onIncidentes,
+            icon = { IconoTi("incidentes") }, label = { Text("Incidentes") })
+        NavigationBarItem(selected = false, enabled = false, onClick = {},
+            icon = { IconoTi("usuarios") }, label = { Text("Usuarios") })
     }
 }

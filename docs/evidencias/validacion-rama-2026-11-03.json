@@ -1,0 +1,97 @@
+{
+  "date": "2026-11-03",
+  "timezone": "America/Santiago",
+  "branch": "release/validacion",
+  "source_branch": "feature/administracion-ti",
+  "source_commit": "9a625ddae666cfebc7897d751e107c791380753c",
+  "application_code_changed": false,
+  "build": {
+    "assembleDebug": "passed",
+    "assembleDebugAndroidTest": "passed",
+    "apk_sha256": "b53902d3c5c9fbb99ab82ecb8ba9083a4caf38831a0845ced340fdf19828a7af"
+  },
+  "unit_tests": [
+    {
+      "suite": "cl.fourpeople.aps.AuditoriaTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cl.fourpeople.aps.ExampleUnitTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cl.fourpeople.aps.IncidentesTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cl.fourpeople.aps.ReglasSolicitudesTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cl.fourpeople.aps.UsuariosTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "instrumentation": {
+    "tests": 10,
+    "failures": 0,
+    "skipped": 0,
+    "seconds": 564.862,
+    "result": "OK (10 tests)",
+    "avd": "Pixel_10a",
+    "model": "sdk_gphone16k_x86_64",
+    "android": "17",
+    "api": 37,
+    "system_ui_anr": "Selected Wait; same suite completed without skipped or retried tests"
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 26,
+    "issues": [
+      {
+        "id": "AndroidGradlePluginVersion",
+        "count": 1
+      },
+      {
+        "id": "ExifInterface",
+        "count": 2
+      },
+      {
+        "id": "GradleDependency",
+        "count": 3
+      },
+      {
+        "id": "NewerVersionAvailable",
+        "count": 1
+      },
+      {
+        "id": "RedundantLabel",
+        "count": 1
+      },
+      {
+        "id": "UnusedResources",
+        "count": 7
+      },
+      {
+        "id": "UseKtx",
+        "count": 11
+      }
+    ],
+    "local_setup": "Corrected SDK path escaping in ignored local.properties and reran analysis and report successfully"
+  }
+}

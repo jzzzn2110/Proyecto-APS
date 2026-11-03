@@ -50,6 +50,7 @@ fun PantallaInicio(
         it.estado == EstadoDocumento.RECHAZADO
     }
 
+    // El acceso rápido usa el mismo formulario de carga y lleva a Documentos cuando termina el guardado.
     if (mostrarCarga) {
         PantallaCargaDocumento(
             onVolver = {
@@ -150,6 +151,7 @@ fun PantallaInicio(
                 )
             }
 
+            // Destaca los documentos rechazados para que el funcionario consulte el motivo y pueda corregirlos.
             if (rechazado != null) {
                 Card(
                     modifier = Modifier

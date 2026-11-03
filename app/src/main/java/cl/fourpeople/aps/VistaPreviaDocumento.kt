@@ -48,6 +48,7 @@ fun VistaPreviaDocumento(uri: String) {
 
     val contexto = LocalContext.current
 
+    // Recuerda la página por archivo para que cambiar de documento reinicie su propia navegación.
     var pagina by rememberSaveable(uri) {
         mutableIntStateOf(0)
     }
@@ -60,6 +61,7 @@ fun VistaPreviaDocumento(uri: String) {
         mutableStateOf(false)
     }
 
+    // Vuelve a generar la vista al cambiar de archivo o página y hace la lectura fuera del hilo de pantalla.
     val vista by produceState<ResultadoVista?>(
         initialValue = null,
         uri,
@@ -232,6 +234,7 @@ private fun renderizarArchivo(
 ): ResultadoVista {
     val direccion = Uri.parse(uri)
 
+    // La vista previa solo acepta las copias locales que administra la aplicación.
     require(direccion.scheme == "file") {
         "La dirección del archivo no es válida."
     }
@@ -248,6 +251,7 @@ private fun renderizarArchivo(
         "documentos"
     ).canonicalFile
 
+    // Comprueba la ruta real para no abrir archivos fuera de la carpeta privada de documentos.
     require(
         archivo.parentFile == carpeta &&
                 archivo.isFile
@@ -270,12 +274,14 @@ private fun renderizarArchivo(
                     "El PDF no contiene páginas."
                 }
 
+                // Renderiza únicamente la página solicitada y limita su índice al rango del PDF.
                 pdf.openPage(
                     pagina.coerceIn(
                         0,
                         pdf.pageCount - 1
                     )
                 ).use { hoja ->
+                    // Limita el lado mayor a 1600 píxeles para controlar la memoria usada por la página.
                     val escala = 1600f / maxOf(
                         hoja.width,
                         hoja.height
@@ -315,6 +321,7 @@ private fun renderizarArchivo(
         }
     }
 
+    // Lee primero las dimensiones sin cargar todos los píxeles de la imagen.
     val opciones = BitmapFactory.Options().apply {
         inJustDecodeBounds = true
     }
@@ -331,6 +338,7 @@ private fun renderizarArchivo(
         "La imagen no se puede leer."
     }
 
+    // Calcula una muestra reducida para mostrar imágenes grandes con menor uso de memoria.
     var muestra = 1
 
     while (
@@ -352,6 +360,7 @@ private fun renderizarArchivo(
         "La imagen no se puede abrir."
     )
 
+    // Aplica la orientación EXIF para mostrar las fotografías con su giro o reflejo correcto.
     val orientacion = runCatching {
         ExifInterface(archivo.path).getAttributeInt(
             ExifInterface.TAG_ORIENTATION,

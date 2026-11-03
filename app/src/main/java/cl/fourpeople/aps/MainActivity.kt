@@ -54,14 +54,17 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf("inicio")
                 }
 
+                // Estos identificadores permiten abrir desde un aviso el documento o la solicitud correspondiente.
                 var documentoObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
                 var solicitudObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
+                // Al cambiar de sección, limpia la selección anterior para no abrir un detalle equivocado.
                 val navegar: (String) -> Unit = { destino ->
                     documentoObjetivo = null
                     solicitudObjetivo = null
                     pantallaActual = destino
                 }
 
+                // Mantiene la vista de carga hasta recuperar los datos; si falla, permite reintentar.
                 var preparado by remember {
                     mutableStateOf(false)
                 }
@@ -174,6 +177,7 @@ class MainActivity : ComponentActivity() {
                             navegar("inicio")
                         }
                     } else if (sesionIniciada) {
+                        // Selecciona la pantalla del funcionario y conecta sus botones mediante callbacks.
                         when (pantallaActual) {
                             "documentos" -> PantallaDocumentos(
                                 onVolver = { navegar("inicio") },
@@ -200,6 +204,7 @@ class MainActivity : ComponentActivity() {
                             "avisos" -> PantallaAvisos(
                                 onNavegar = navegar,
                                 onAbrir = { aviso ->
+                                    // El grupo del aviso determina qué sección abrir y qué registro dejar seleccionado.
                                     if (aviso.grupo == "DOCUMENTOS") {
                                         documentoObjetivo = aviso.destinoId
                                         pantallaActual = "documentos"
@@ -241,6 +246,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 // login de prueba: aquí están el formulario y la validación de las cuentas ficticias.
 private fun PantallaLogin(onIngresar: (String, String) -> Unit) {
+    // Conserva lo escrito en el formulario cuando Android recrea la pantalla.
     var usuario by rememberSaveable {
         mutableStateOf("")
     }

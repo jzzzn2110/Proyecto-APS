@@ -39,6 +39,7 @@ fun PantallaNuevaSolicitud(onVolver: () -> Unit, onEnviada: (String) -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
     val formato = remember { DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT) }
+    // Conserva el borrador de la solicitud aunque Android recree la pantalla.
     var tipoNombre by rememberSaveable { mutableStateOf(TipoSolicitud.ADMINISTRATIVO.name) }
     var jornadaNombre by rememberSaveable { mutableStateOf(JornadaSolicitud.COMPLETA.name) }
     var desde by rememberSaveable { mutableStateOf(LocalDate.now().format(formato)) }
@@ -51,6 +52,7 @@ fun PantallaNuevaSolicitud(onVolver: () -> Unit, onEnviada: (String) -> Unit) {
     var ocupado by remember { mutableStateOf(false) }
     val bloqueado = ocupado || fotoPendiente.isNotBlank()
 
+    // Reemplaza el respaldo solo cuando el archivo nuevo se importó correctamente.
     suspend fun importar(origen: Uri) {
         val anterior = archivoUri
         val nuevo = ArchivosFuncionario.importar(contexto, origen)
@@ -59,6 +61,7 @@ fun PantallaNuevaSolicitud(onVolver: () -> Unit, onEnviada: (String) -> Unit) {
         ArchivosFuncionario.eliminarSinGuardar(contexto, anterior)
     }
 
+    // Al volver sin enviar, limpia el adjunto que quedó fuera de las solicitudes guardadas.
     fun volver() {
         if (bloqueado) return
         ocupado = true
@@ -86,6 +89,7 @@ fun PantallaNuevaSolicitud(onVolver: () -> Unit, onEnviada: (String) -> Unit) {
         }
     }
 
+    // Procesa la foto como respaldo y elimina el temporal incluso si se cancela o falla la captura.
     val camara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { tomada ->
         val temporal = fotoPendiente
         if (temporal.isNotBlank()) {
@@ -191,6 +195,7 @@ fun PantallaNuevaSolicitud(onVolver: () -> Unit, onEnviada: (String) -> Unit) {
                         error = null
                         alcance.launch {
                             try {
+                                // Convierte las fechas escritas a fechas válidas antes de construir la solicitud.
                                 val inicio = runCatching { LocalDate.parse(desde.trim(), formato) }
                                     .getOrElse { throw IllegalArgumentException("Desde inválido. Usa DD/MM/AAAA.") }
                                 val fin = runCatching { LocalDate.parse(hasta.trim(), formato) }
@@ -203,10 +208,12 @@ fun PantallaNuevaSolicitud(onVolver: () -> Unit, onEnviada: (String) -> Unit) {
                                     motivo = motivo.trim(), creadaEn = LocalDateTime.now().toString(),
                                     archivoUri = archivoUri
                                 )
+                                // Completa el envío aunque se recree la pantalla y deja el adjunto asociado a la solicitud guardada.
                                 withContext(NonCancellable) {
                                     DatosSolicitudes.enviar(contexto.applicationContext, nueva)
                                     archivoUri = ""
                                 }
+                                // Entrega el ID guardado para abrir la confirmación de esta solicitud.
                                 onEnviada(nueva.id)
                             } catch (e: CancellationException) {
                                 throw e

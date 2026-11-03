@@ -53,6 +53,7 @@ fun PantallaCargaDocumento(
         DatosFuncionario.documentosActivos.firstOrNull { it.id == documentoId }
     }
 
+    // La corrección se habilita únicamente para un documento existente que fue rechazado.
     if (documentoId != null &&
         (original == null || original.estado != EstadoDocumento.RECHAZADO)
     ) {
@@ -67,6 +68,7 @@ fun PantallaCargaDocumento(
         return
     }
 
+    // El formulario parte con los datos anteriores al corregir y conserva el borrador al recrearse.
     var nombre by rememberSaveable(documentoId) {
         mutableStateOf(original?.nombre ?: "")
     }
@@ -90,8 +92,10 @@ fun PantallaCargaDocumento(
     var ocupado by remember { mutableStateOf(false) }
 
     var fotoPendiente by rememberSaveable(documentoId) { mutableStateOf("") }
+    // Bloquea las acciones mientras se importa, se guarda o se espera el resultado de la cámara.
     val bloqueado = ocupado || fotoPendiente.isNotBlank()
 
+    // Al cancelar, elimina el adjunto nuevo que todavía no se guardó en el expediente.
     fun cancelar() {
         if (bloqueado) return
 
@@ -107,6 +111,7 @@ fun PantallaCargaDocumento(
         }
     }
 
+    // Importa el archivo elegido y conserva la selección anterior hasta que la nueva copia esté lista.
     val selector = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { origen ->
@@ -148,6 +153,7 @@ fun PantallaCargaDocumento(
         }
     }
 
+    // Recibe la fotografía, la importa como documento y limpia el temporal aunque ocurra un error.
     val camara = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { tomada ->
@@ -394,6 +400,7 @@ fun PantallaCargaDocumento(
                         alcance.launch {
                             try {
                                 ControlAcceso.exigir(contexto, "documentos.propios", propio = true)
+                                // Valida el nombre, las fechas y las horas de capacitación antes de crear la nueva versión.
                                 require(nombre.trim().length in 3..120) {
                                     "El nombre debe tener entre 3 y 120 caracteres."
                                 }
@@ -440,6 +447,7 @@ fun PantallaCargaDocumento(
                                     }
                                 }
 
+                                // Un documento nuevo recibe un ID; una corrección conserva el ID y agrega la versión anterior al historial.
                                 val nuevo = if (original == null) {
                                     DocumentoFuncionario(
                                         id = UUID.randomUUID().toString(),
@@ -475,6 +483,7 @@ fun PantallaCargaDocumento(
                                     val indice = actualizados.indexOfFirst {
                                         it.id == original.id
                                     }
+                                    // Comprueba que el documento no haya cambiado mientras el funcionario completaba el formulario.
                                     require(indice >= 0 && actualizados[indice] == original) {
                                         "El documento cambió. Vuelve a abrirlo para corregirlo."
                                     }
@@ -488,6 +497,7 @@ fun PantallaCargaDocumento(
                                         actualizados
                                     )
 
+                                    // Refleja los cambios en las pantallas únicamente después de completar la escritura.
                                     DatosFuncionario.documentos.clear()
                                     DatosFuncionario.documentos.addAll(
                                         actualizados

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 
+// coloresS: se pueden cambiar estos valores para ajustar la apariencia.
 private val VerdeAps = Color(0xFF115D55)
 private val FondoAps = Color(0xFFF5F7F4)
 
@@ -39,10 +40,16 @@ class MainActivity : ComponentActivity() {
                     surface = Color.White
                 )
             ) {
+                // Indica si se está mostrando una sesión de demostración.
                 var sesionIniciada by rememberSaveable {
                     mutableStateOf(false)
                 }
 
+                // Recuerda el perfil elegido al ingresar.
+                var perfilActual by rememberSaveable { mutableStateOf("Funcionario") }
+                var usuarioActual by rememberSaveable { mutableStateOf("") }
+
+                // Indica qué pantalla del funcionario se muestra.
                 var pantallaActual by rememberSaveable {
                     mutableStateOf("inicio")
                 }
@@ -67,11 +74,14 @@ class MainActivity : ComponentActivity() {
                     mutableIntStateOf(0)
                 }
 
+                // al iniciar carga del teléfono los documentos y las solicitudes.
                 LaunchedEffect(intento) {
                     preparado = false
                     errorCarga = null
 
                     try {
+                        RespaldoLocal.recuperarPendiente(applicationContext)
+                        DatosUsuarios.cargar(applicationContext)
                         val guardados = PersistenciaDocumentos.cargar(
                             applicationContext,
                             DatosFuncionario.documentos.toList()
@@ -80,13 +90,23 @@ class MainActivity : ComponentActivity() {
                         DatosFuncionario.documentos.clear()
                         DatosFuncionario.documentos.addAll(guardados)
 
+                        PersistenciaDocumentos.guardar(applicationContext, guardados)
                         DatosSolicitudes.cargar(applicationContext)
+                        DatosSeguridad.cargar(applicationContext)
                         preparado = true
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         errorCarga = e.message
                             ?: "No se pudo abrir el expediente."
+                    }
+                }
+
+                LaunchedEffect(preparado, sesionIniciada, usuarioActual, DatosSeguridad.estado.bloqueadas, DatosUsuarios.estado.usuarios) {
+                    if (preparado && sesionIniciada && (usuarioActual in DatosSeguridad.estado.bloqueadas || ControlAcceso.perfil(applicationContext)?.activa != true)) {
+                        sesionIniciada = false
+                        SesionLocal.limpiar(applicationContext)
+                        navegar("inicio")
                     }
                 }
 
@@ -125,6 +145,33 @@ class MainActivity : ComponentActivity() {
                                     Text("Reintentar")
                                 }
                             }
+                        }
+                        // Administrativo y Jefatura entran a su propia pantalla.
+                    } else if (sesionIniciada && perfilActual == "TI / Admin") {
+                        PantallaAuditoria(onRestaurado = {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            preparado = false
+                            intento++
+                            android.widget.Toast.makeText(applicationContext, "Respaldo restaurado. Inicia sesión nuevamente.", android.widget.Toast.LENGTH_LONG).show()
+                        }) {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            navegar("inicio")
+                        }
+                    } else if (sesionIniciada && perfilActual != "Funcionario") {
+                        PantallaAdministrativa(perfilActual) {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            navegar("inicio")
+                        }
+                    } else if (sesionIniciada && ControlAcceso.perfil(applicationContext)?.let {
+                            it.usuario != DatosAdministracion.estado.expediente.usuario || it.centro != DatosAdministracion.estado.expediente.centro
+                        } == true) {
+                        AccesoDenegado {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            navegar("inicio")
                         }
                     } else if (sesionIniciada) {
                         when (pantallaActual) {
@@ -165,6 +212,7 @@ class MainActivity : ComponentActivity() {
                             else -> PantallaInicio(
                                 onCerrarSesion = {
                                     sesionIniciada = false
+                                    SesionLocal.limpiar(applicationContext)
                                     navegar("inicio")
                                 },
                                 onAbrirDocumentos = { navegar("documentos") },
@@ -174,7 +222,11 @@ class MainActivity : ComponentActivity() {
                         }
                     } else {
                         PantallaLogin(
-                            onIngresar = {
+                            // El login devuelve el perfil seleccionado
+                            onIngresar = { perfil, usuario ->
+                                perfilActual = perfil
+                                usuarioActual = usuario
+                                SesionLocal.guardar(applicationContext, usuario = usuario, rol = perfil)
                                 pantallaActual = "inicio"
                                 sesionIniciada = true
                             }
@@ -187,7 +239,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PantallaLogin(onIngresar: () -> Unit) {
+// login de prueba: aquí están el formulario y la validación de las cuentas ficticias.
+private fun PantallaLogin(onIngresar: (String, String) -> Unit) {
     var usuario by rememberSaveable {
         mutableStateOf("")
     }
@@ -287,6 +340,7 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
                 fontWeight = FontWeight.SemiBold
             )
 
+            // Perfiles: estos nombres también se usan para comprobar permisos.
             listOf(
                 listOf("Funcionario", "Administrativo"),
                 listOf("Jefatura", "TI / Admin")
@@ -329,25 +383,8 @@ private fun PantallaLogin(onIngresar: () -> Unit) {
 
             Button(
                 onClick = {
-                    when {
-                        usuario.isBlank() || clave.isBlank() -> {
-                            error = "Completa el usuario y la contraseña."
-                        }
-
-                        rol != "Funcionario" -> {
-                            error = "En esta etapa está disponible " +
-                                    "el perfil Funcionario."
-                        }
-
-                        usuario.trim() == "c.rojas" &&
-                                clave == "Demo1234!" -> {
-                            onIngresar()
-                        }
-
-                        else -> {
-                            error = "Usuario o contraseña incorrectos."
-                        }
-                    }
+                    val problema = AccesoCuentas.errorIngreso(usuario, clave, rol, DatosSeguridad.estado.bloqueadas)
+                    if (problema == null) onIngresar(rol, usuario.trim()) else error = problema
                 },
                 modifier = Modifier
                     .fillMaxWidth()

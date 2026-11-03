@@ -30,6 +30,12 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun PantallaNuevaSolicitud(onVolver: () -> Unit, onEnviada: (String) -> Unit) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "solicitudes.propias", propio = true)) {
+        AccesoDenegado(onVolver)
+        return
+    }
+
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
     val formato = remember { DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT) }

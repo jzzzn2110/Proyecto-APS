@@ -34,6 +34,12 @@ fun PantallaCargaDocumento(
     onGuardado: () -> Unit,
     documentoId: String? = null
 ) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "documentos.propios", propio = true)) {
+        AccesoDenegado(onVolver)
+        return
+    }
+
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
 
@@ -44,7 +50,7 @@ fun PantallaCargaDocumento(
     }
 
     val original = remember(documentoId) {
-        DatosFuncionario.documentos.firstOrNull { it.id == documentoId }
+        DatosFuncionario.documentosActivos.firstOrNull { it.id == documentoId }
     }
 
     if (documentoId != null &&
@@ -387,6 +393,7 @@ fun PantallaCargaDocumento(
 
                         alcance.launch {
                             try {
+                                ControlAcceso.exigir(contexto, "documentos.propios", propio = true)
                                 require(nombre.trim().length in 3..120) {
                                     "El nombre debe tener entre 3 y 120 caracteres."
                                 }

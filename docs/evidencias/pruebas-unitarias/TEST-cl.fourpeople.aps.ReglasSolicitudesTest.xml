@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="cl.fourpeople.aps.ReglasSolicitudesTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-02T23:05:42.301Z" hostname="LAPTOP-3M06K439" time="0.034">
+  <properties/>
+  <testcase name="pendienteReservaAprobadaConsumeYRechazadaLibera" classname="cl.fourpeople.aps.ReglasSolicitudesTest" time="0.018"/>
+  <testcase name="rechazaFechasPasadasYMediasJornadasDeVariosDias" classname="cl.fourpeople.aps.ReglasSolicitudesTest" time="0.006"/>
+  <testcase name="permiteDosMediasJornadasDistintasPeroNoLaMisma" classname="cl.fourpeople.aps.ReglasSolicitudesTest" time="0.005"/>
+  <testcase name="rechazaPeriodosSuperpuestos" classname="cl.fourpeople.aps.ReglasSolicitudesTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

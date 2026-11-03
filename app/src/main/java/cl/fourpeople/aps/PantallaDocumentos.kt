@@ -22,11 +22,18 @@ import androidx.compose.ui.unit.sp
 private val VerdeDocumentos = Color(0xFF115D55)
 
 @Composable
+// Vista del funcionario: consulta documentos y sus versiones.
 fun PantallaDocumentos(
     onVolver: () -> Unit,
     onNavegar: (String) -> Unit,
     documentoInicialId: String? = null
 ) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "documentos.propios", propio = true)) {
+        AccesoDenegado(onVolver)
+        return
+    }
+
     var mostrarCarga by rememberSaveable {
         mutableStateOf(false)
     }
@@ -47,11 +54,12 @@ fun PantallaDocumentos(
         mutableStateOf(documentoInicialId)
     }
 
-    val seleccionado = DatosFuncionario.documentos.firstOrNull {
+    val seleccionado = DatosFuncionario.documentosActivos.firstOrNull {
         it.id == seleccionadoId
     }
 
-    val visibles = DatosFuncionario.documentos.filter {
+    // Combina categoría y texto para filtrar la lista.
+    val visibles = DatosFuncionario.documentosActivos.filter {
         (categoria == "Todos" || it.categoria == categoria) &&
                 it.nombre.contains(
                     busqueda.trim(),
@@ -129,13 +137,15 @@ fun PantallaDocumentos(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Camila Rojas Soto",
+                        // Muestra el nombre que guardó Administrativo.
+                        text = DatosAdministracion.estado.expediente.nombre,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        text = "RUN DEMO-CAMILA · ficticio",
+                        // Identificador ficticio compartido con el expediente.
+                        text = "RUN ${DatosAdministracion.estado.expediente.run} · ficticio",
                         color = Color.Gray,
                         fontSize = 12.sp
                     )
@@ -143,22 +153,23 @@ fun PantallaDocumentos(
                     HorizontalDivider()
 
                     Text(
-                        text = "Centro: CESFAM Norte",
+                        // Estos datos vienen del expediente compartido.
+                        text = "Centro: ${DatosAdministracion.estado.expediente.centro}",
                         color = VerdeDocumentos
                     )
 
                     Text(
-                        text = "Cargo: Técnico de enfermería",
+                        text = "Cargo: ${DatosAdministracion.estado.expediente.cargo}",
                         fontSize = 13.sp
                     )
 
                     Text(
-                        text = "Contrato: Plazo fijo",
+                        text = "Contrato: ${DatosAdministracion.estado.expediente.contrato}",
                         fontSize = 13.sp
                     )
 
                     Text(
-                        text = "Ingreso: 15/03/2021",
+                        text = "Ingreso: ${DatosAdministracion.estado.expediente.ingreso}",
                         fontSize = 13.sp
                     )
                 }
@@ -258,6 +269,7 @@ fun PantallaDocumentos(
         }
     }
 
+    // Al abrir un documento, muestra su detalle y versiones anteriores.
     seleccionado?.let { documento ->
         var versionVista by rememberSaveable(documento.id, documento.version) {
             mutableIntStateOf(documento.version)
@@ -277,6 +289,7 @@ fun PantallaDocumentos(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    RegistrarConsulta(vista)
                     Text("Identificador: ${documento.id}", fontSize = 12.sp)
                     Text(
                         if (vista.version == documento.version) {
@@ -316,6 +329,7 @@ fun PantallaDocumentos(
                     EtiquetaEstado(vista.estado)
                     key(vista.version) {
                         VistaPreviaDocumento(uri = vista.archivoUri)
+                        DescargarDocumento(vista)
                     }
                     Text("Nombre: ${vista.nombre}")
                     Text("Categoría: ${vista.categoria}")

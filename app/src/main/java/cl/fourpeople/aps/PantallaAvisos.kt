@@ -39,7 +39,7 @@ data class AvisoFuncionario(
 fun avisosFuncionario(hoy: LocalDate = LocalDate.now()): List<AvisoFuncionario> {
     val avisos = mutableListOf<AvisoFuncionario>()
     val formato = DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT)
-    DatosFuncionario.documentos.forEach { documento ->
+    DatosFuncionario.documentosActivos.forEach { documento ->
         val base = "documento:${documento.id}:${documento.version}"
         when (documento.estado) {
             EstadoDocumento.RECHAZADO -> avisos.add(AvisoFuncionario(
@@ -94,7 +94,7 @@ fun avisosFuncionario(hoy: LocalDate = LocalDate.now()): List<AvisoFuncionario> 
 fun PantallaAvisos(onNavegar: (String) -> Unit, onAbrir: (AvisoFuncionario) -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
-    val avisos = avisosFuncionario()
+    val avisos = ControlAcceso.avisos(contexto)
     val leidos = DatosSolicitudes.estado.avisosLeidos
     var ocupado by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }

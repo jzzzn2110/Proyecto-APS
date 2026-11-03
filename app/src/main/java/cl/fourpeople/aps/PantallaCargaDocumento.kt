@@ -44,7 +44,7 @@ fun PantallaCargaDocumento(
     }
 
     val original = remember(documentoId) {
-        DatosFuncionario.documentos.firstOrNull { it.id == documentoId }
+        DatosFuncionario.documentosActivos.firstOrNull { it.id == documentoId }
     }
 
     if (documentoId != null &&

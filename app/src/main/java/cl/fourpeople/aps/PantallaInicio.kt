@@ -23,6 +23,7 @@ private val FondoInicio = Color(0xFFF5F7F4)
 private val GrisInicio = Color(0xFF6E7772)
 
 @Composable
+// Inicio del funcionario: resumen, accesos rápidos y últimos documentos.
 fun PantallaInicio(
     onCerrarSesion: () -> Unit,
     onAbrirDocumentos: () -> Unit,
@@ -33,15 +34,15 @@ fun PantallaInicio(
         mutableStateOf(false)
     }
 
-    val pendientes = DatosFuncionario.documentos.count {
+    val pendientes = DatosFuncionario.documentosActivos.count {
         it.estado == EstadoDocumento.PENDIENTE
     }
 
-    val rechazados = DatosFuncionario.documentos.count {
+    val rechazados = DatosFuncionario.documentosActivos.count {
         it.estado == EstadoDocumento.RECHAZADO
     }
 
-    val rechazado = DatosFuncionario.documentos.firstOrNull {
+    val rechazado = DatosFuncionario.documentosActivos.firstOrNull {
         it.estado == EstadoDocumento.RECHAZADO
     }
 
@@ -93,13 +94,15 @@ fun PantallaInicio(
 
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "Hola, Camila",
+                        // El saludo usa el primer nombre del expediente guardado.
+                        "Hola, ${DatosAdministracion.estado.expediente.nombre.substringBefore(' ')}",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        "Funcionaria · CESFAM Norte",
+                        // El centro también se obtiene del expediente compartido.
+                        "Funcionario · ${DatosAdministracion.estado.expediente.centro}",
                         color = GrisInicio,
                         fontSize = 12.sp
                     )
@@ -216,7 +219,7 @@ fun PantallaInicio(
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                val recientes = DatosFuncionario.documentos.take(2)
+                val recientes = DatosFuncionario.documentosActivos.take(2)
 
                 recientes.forEachIndexed { indice, documento ->
                     val (fondo, color) = when (documento.estado) {

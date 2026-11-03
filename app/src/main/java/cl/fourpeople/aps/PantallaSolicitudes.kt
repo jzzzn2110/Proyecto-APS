@@ -140,6 +140,17 @@ fun PantallaSolicitudes(
                         Text("Respuesta de jefatura", fontWeight = FontWeight.Bold)
                         Text(solicitud.respuesta)
                     }
+
+                    // Muestra quién revisó la solicitud.
+                    if (solicitud.revisadaPor.isNotBlank()) {
+                        Text("Revisada por: ${solicitud.revisadaPor}")
+                    }
+
+                    // Muestra la fecha y hora de la revisión.
+                    if (solicitud.revisadaEn.isNotBlank()) {
+                        Text("Fecha y hora: ${solicitud.revisadaEn}")
+                    }
+
                     if (solicitud.archivoUri.isNotBlank()) {
                         Text("Respaldo adjunto", fontWeight = FontWeight.Bold)
                         VistaPreviaDocumento(solicitud.archivoUri)

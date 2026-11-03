@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="cl.fourpeople.aps.IncidentesTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-02T23:05:41.822Z" hostname="LAPTOP-3M06K439" time="0.458">
+  <properties/>
+  <testcase name="cuentaBloqueadaNoIngresaAunqueLaClaveSeaCorrecta" classname="cl.fourpeople.aps.IncidentesTest" time="0.401"/>
+  <testcase name="bloqueoAfectaATodosLosPerfiles" classname="cl.fourpeople.aps.IncidentesTest" time="0.005"/>
+  <testcase name="cambiarRolOClaveNoPermiteEludirLaValidacion" classname="cl.fourpeople.aps.IncidentesTest" time="0.003"/>
+  <testcase name="noPermiteVincularEventoDeOtraCuentaOInexistente" classname="cl.fourpeople.aps.IncidentesTest" time="0.02"/>
+  <testcase name="validaDatosObligatoriosYCuentaExistente" classname="cl.fourpeople.aps.IncidentesTest" time="0.012"/>
+  <testcase name="cierreRequiereRevisionYObservacion" classname="cl.fourpeople.aps.IncidentesTest" time="0.011"/>
+  <testcase name="incidentePuedeCrearseConYSinEventos" classname="cl.fourpeople.aps.IncidentesTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

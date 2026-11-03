@@ -1,0 +1,45 @@
+{
+  "fecha": "2026-11-02",
+  "commitBase": "5a12b441d9fc6f1879d1c86dcfd336f03f72038e",
+  "cambios": "Bloque 16 pendiente de commit del autor",
+  "unitarias": {
+    "total": 24,
+    "fallidas": 0
+  },
+  "instrumentadas": {
+    "total": 10,
+    "fallidas": 0,
+    "duracionSegundos": 643.604
+  },
+  "lint": {
+    "errores": 0,
+    "advertencias": 26,
+    "categorias": {
+      "ExifInterface": 2,
+      "RedundantLabel": 1,
+      "AndroidGradlePluginVersion": 1,
+      "GradleDependency": 3,
+      "NewerVersionAvailable": 1,
+      "UnusedResources": 7,
+      "UseKtx": 11
+    }
+  },
+  "apk": {
+    "archivo": "Proyecto-APS-MVP-debug.apk",
+    "bytes": 12749841,
+    "sha256": "ef568ee489d9e8878bf16c8aa9cc8e3040952e75e3ca5649bdfdb01a9451c31d",
+    "paquete": "cl.fourpeople.aps",
+    "version": "1.0",
+    "versionCode": 1,
+    "minSdk": 26,
+    "targetSdk": 37,
+    "firma": "Android Debug, esquema v2 verificado"
+  },
+  "dispositivo": {
+    "avd": "Pixel_8",
+    "modelo": "sdk_gphone16k_x86_64",
+    "android": "17",
+    "api": 37,
+    "zonaHoraria": "GMT"
+  }
+}

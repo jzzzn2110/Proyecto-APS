@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -129,7 +130,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                         (filtroCategoria == "Todas" || item.categoria == filtroCategoria) &&
                             (filtroEstado == "Todos" || item.estado.texto == filtroEstado)
                     }.forEach { item ->
-                        Card(Modifier.fillMaxWidth()) {
+                        Card(Modifier.fillMaxWidth().testTag("documento-admin-${item.id}")) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(item.nombre, fontWeight = FontWeight.Bold)
                                 Text("${item.categoria} · ${item.estado.texto} · v${item.version}")

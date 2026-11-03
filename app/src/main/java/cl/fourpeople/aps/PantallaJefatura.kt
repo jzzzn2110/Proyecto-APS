@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -185,7 +186,7 @@ fun PantallaJefatura(
 
             // Muestra una tarjeta por cada solicitud.
             visibles.forEach { item ->
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().testTag("solicitud-jefatura-${item.id}")) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)

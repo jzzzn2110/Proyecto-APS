@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -86,7 +87,7 @@ fun PantallaSolicitudes(
                             Text("Días administrativos disponibles", color = Color.Gray)
                             val saldo = ReglasSolicitudes.saldo(solicitudes,
                                 TipoSolicitud.ADMINISTRATIVO, LocalDate.now().year, false)
-                            Text("${textoDias(saldo)} de 6", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text("${textoDias(saldo)} de ${DatosUsuarios.estado.saldos.administrativos}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         }
                         Column(Modifier.weight(1f)) {
                             Text("Feriado legal disponible", color = Color.Gray)
@@ -108,7 +109,7 @@ fun PantallaSolicitudes(
             }
             if (visibles.isEmpty()) Text("No hay solicitudes en esta categoría.", color = Color.Gray)
             visibles.forEach { solicitud ->
-                Card(modifier = Modifier.fillMaxWidth().clickable { seleccionadoId = solicitud.id },
+                Card(modifier = Modifier.fillMaxWidth().testTag("solicitud-funcionario-${solicitud.id}").clickable { seleccionadoId = solicitud.id },
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     shape = RoundedCornerShape(16.dp)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

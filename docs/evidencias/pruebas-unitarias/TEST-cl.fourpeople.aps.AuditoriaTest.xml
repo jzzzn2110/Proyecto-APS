@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="cl.fourpeople.aps.AuditoriaTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-02T23:05:41.255Z" hostname="LAPTOP-3M06K439" time="0.513">
+  <properties/>
+  <testcase name="sieteDiasIncluyeLimiteYExcluyeFechasFuturas" classname="cl.fourpeople.aps.AuditoriaTest" time="0.364"/>
+  <testcase name="hoyFiltraSoloLaFechaActual" classname="cl.fourpeople.aps.AuditoriaTest" time="0.006"/>
+  <testcase name="exportaSoloLaSeleccionFiltrada" classname="cl.fourpeople.aps.AuditoriaTest" time="0.042"/>
+  <testcase name="filtrosCombinadosRespetanCentroTipoAccionYBusqueda" classname="cl.fourpeople.aps.AuditoriaTest" time="0.029"/>
+  <testcase name="csvVacioMantieneCabeceras" classname="cl.fourpeople.aps.AuditoriaTest" time="0.006"/>
+  <testcase name="csvEscapaComillasComasSaltosYFormulas" classname="cl.fourpeople.aps.AuditoriaTest" time="0.008"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -9,6 +9,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -96,6 +97,8 @@ object DatosSolicitudes {
 
             ).also {
                 require(it.id.isNotBlank())
+                LocalDateTime.parse(it.creadaEn)
+                if (it.revisadaEn.isNotBlank()) LocalDateTime.parse(it.revisadaEn)
                 val desde = LocalDate.parse(it.desde)
                 val hasta = LocalDate.parse(it.hasta)
                 require(!hasta.isBefore(desde) && it.dias in 0.5..365.0)

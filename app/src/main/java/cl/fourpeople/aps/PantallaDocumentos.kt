@@ -38,6 +38,7 @@ fun PantallaDocumentos(
         mutableStateOf(false)
     }
 
+    // Un ID de edición distingue una corrección de la carga de un documento nuevo.
     var editandoId by rememberSaveable {
         mutableStateOf<String?>(null)
     }
@@ -67,6 +68,7 @@ fun PantallaDocumentos(
                 )
     }
 
+    // Abre el formulario y, al guardar, restablece los filtros para mostrar el resultado.
     if (mostrarCarga) {
         PantallaCargaDocumento(
             onVolver = {
@@ -271,6 +273,7 @@ fun PantallaDocumentos(
 
     // Al abrir un documento, muestra su detalle y versiones anteriores.
     seleccionado?.let { documento ->
+        // Permite consultar versiones anteriores sin reemplazar la versión vigente del documento.
         var versionVista by rememberSaveable(documento.id, documento.version) {
             mutableIntStateOf(documento.version)
         }
@@ -328,6 +331,7 @@ fun PantallaDocumentos(
 
                     EtiquetaEstado(vista.estado)
                     key(vista.version) {
+                        // La vista previa muestra el archivo de la versión seleccionada.
                         VistaPreviaDocumento(uri = vista.archivoUri)
                         DescargarDocumento(vista)
                     }
@@ -350,6 +354,7 @@ fun PantallaDocumentos(
                 }
             },
             dismissButton = {
+                // Solo ofrece reenviar una corrección cuando la versión vigente está rechazada.
                 if (documento.estado == EstadoDocumento.RECHAZADO) {
                     TextButton(
                         onClick = {

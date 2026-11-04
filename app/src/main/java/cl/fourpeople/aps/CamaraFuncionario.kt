@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object CamaraFuncionario {
+    // Prepara una foto temporal y entrega a la cámara una URI del FileProvider.
     fun crearDestino(contexto: Context): Uri {
         val carpeta = File(contexto.cacheDir, "camara")
         check(carpeta.isDirectory || carpeta.mkdirs()) {
@@ -23,11 +24,13 @@ object CamaraFuncionario {
                 foto
             )
         } catch (e: Exception) {
+            // Si no se puede compartir la URI, elimina el archivo vacío que se había creado.
             foto.delete()
             throw e
         }
     }
 
+    // Elimina el temporal de la cámara solo si pertenece al proveedor de esta aplicación.
     suspend fun eliminarTemporal(contexto: Context, direccion: String) {
         withContext(Dispatchers.IO) {
             if (direccion.isNotBlank()) {

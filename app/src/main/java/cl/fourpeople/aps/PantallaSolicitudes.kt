@@ -52,10 +52,12 @@ fun PantallaSolicitudes(
     }
 
     var filtro by rememberSaveable { mutableStateOf("Todas") }
+    // Recupera la selección inicial para abrir directamente una solicitud desde sus avisos.
     var seleccionadoId by rememberSaveable(solicitudInicialId) {
         mutableStateOf(solicitudInicialId)
     }
     val solicitudes = DatosSolicitudes.estado.solicitudes
+    // El filtro separa las solicitudes en revisión de las que ya tienen una resolución.
     val visibles = solicitudes.filter {
         when (filtro) {
             "En curso" -> it.estado == EstadoSolicitud.EN_REVISION
@@ -128,6 +130,7 @@ fun PantallaSolicitudes(
                 fontSize = 12.sp, color = Color.Gray)
         }
     }
+    // Busca el registro por ID para mostrar su detalle con los datos del estado compartido.
     solicitudes.firstOrNull { it.id == seleccionadoId }?.let { solicitud ->
         AlertDialog(
             onDismissRequest = { seleccionadoId = null },
@@ -171,6 +174,7 @@ fun PantallaSolicitudes(
 
 @Composable
 fun PantallaSolicitudEnviada(id: String?, onVerSolicitudes: () -> Unit, onInicio: () -> Unit) {
+    // La confirmación consulta el ID recién guardado, en lugar de crear otra solicitud.
     val solicitud = DatosSolicitudes.estado.solicitudes.firstOrNull { it.id == id }
     BackHandler(onBack = onVerSolicitudes)
     Scaffold(containerColor = Color(0xFFF5F7F4)) { espacio ->

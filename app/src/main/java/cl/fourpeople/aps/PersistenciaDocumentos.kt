@@ -78,6 +78,7 @@ object PersistenciaDocumentos {
     // Guarda todos los documentos y los antecedentes laborales juntos.
     suspend fun guardar(contexto: Context, documentos: List<DocumentoFuncionario>,
                         administracion: EstadoAdministracion = DatosAdministracion.estado) {
+        // Toma una copia de la lista antes de pasar al guardado en segundo plano.
         val copia = documentos.toList()
         withContext(Dispatchers.IO) {
             bloqueo.withLock {

@@ -2,6 +2,14 @@
 
 MVP académico para gestionar documentos y solicitudes de funcionarios de Atención Primaria de Salud. Aplicación Android en Kotlin y Jetpack Compose, con datos ficticios y almacenamiento local.
 
+## Estado de esta rama
+
+`release/validacion` reúne el trabajo integrado de `feature/administracion-ti`, que incluye las ramas anteriores. El código `9a625dd` se comprobó el **3 de noviembre de 2026**: aplicación y APK de pruebas compilados, **24 pruebas unitarias y 10 pruebas en emulador aprobadas**, sin fallos ni pruebas omitidas. Android Lint terminó con **0 errores y 26 advertencias pendientes**.
+
+Consultar el [informe de validación de esta rama](docs/VALIDACION_RAMA.md) para conocer el entorno, las evidencias y los límites de las comprobaciones. Los resultados corresponden al MVP y a los recorridos probados.
+
+## Descripción
+
 El proyecto reúne los flujos de Funcionario, Administrativo, Jefatura y TI / Admin. TI permite consultar auditoría, exportar CSV, gestionar incidentes, administrar cuentas y permisos y crear o restaurar respaldos ZIP.
 
 ## Ejecutar el proyecto

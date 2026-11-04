@@ -42,28 +42,50 @@ object DatosSolicitudes {
             EstadoSolicitud.RECHAZADA, "Falta acreditar las horas compensatorias.")
     ))
 
+    // Las pantallas consultan este estado compartido y se actualizan cuando cambia.
     var estado by mutableStateOf(inicial)
         private set
     private val bloqueo get() = AlmacenamientoAps.bloqueo
 
+    private fun repository(contexto: Context) =
+        SolicitudesRepository(ApsDatabase.obtener(contexto).solicitudDao())
+
     private fun archivo(contexto: Context) =
         AtomicFile(File(contexto.filesDir, "solicitudes_funcionario.json"))
 
+    // Recupera las solicitudes del teléfono; usa los ejemplos solo si todavía no existe el archivo.
     suspend fun cargar(contexto: Context) {
         bloqueo.withLock {
-            val cargado = withContext(Dispatchers.IO) {
+            val cargadoJson = withContext(Dispatchers.IO) {
                 val almacenamiento = archivo(contexto)
                 val entrada = try {
                     almacenamiento.openRead()
                 } catch (e: FileNotFoundException) {
                     if (almacenamiento.baseFile.exists()) throw e
-                    return@withContext inicial
+                    return@withContext null
                 }
                 try {
                     val raiz = JSONObject(entrada.bufferedReader(Charsets.UTF_8).use { it.readText() })
                     leer(raiz)
                 } catch (e: Exception) {
                     throw IOException("No se pudieron leer las solicitudes guardadas. Los datos se conservaron.", e)
+                }
+            }
+            val room = repository(contexto)
+            val migrado = contexto.getSharedPreferences("aps_room", Context.MODE_PRIVATE)
+                .getBoolean("solicitudes_migradas", false)
+            val cargado = if (!migrado && cargadoJson != null) {
+                room.reemplazar(cargadoJson.solicitudes)
+                contexto.getSharedPreferences("aps_room", Context.MODE_PRIVATE).edit()
+                    .putBoolean("solicitudes_migradas", true).apply()
+                cargadoJson
+            } else {
+                val solicitudesRoom = room.listar()
+                if (solicitudesRoom.isEmpty() && cargadoJson == null) {
+                    room.reemplazar(inicial.solicitudes)
+                    inicial
+                } else {
+                    (cargadoJson ?: estado).copy(solicitudes = solicitudesRoom)
                 }
             }
             estado = cargado
@@ -117,17 +139,21 @@ object DatosSolicitudes {
     suspend fun enviar(contexto: Context, solicitud: SolicitudFuncionario) {
         bloqueo.withLock {
             ControlAcceso.exigir(contexto, "solicitudes.propias", propio = true)
+            // Una solicitud nueva debe estar en revisión, tener un ID único y cumplir las reglas de fechas y saldo.
             require(solicitud.estado == EstadoSolicitud.EN_REVISION)
             require(estado.solicitudes.none { it.id == solicitud.id })
             ReglasSolicitudes.validar(solicitud, estado.solicitudes)
             val evento = AuditoriaLocal.evento(contexto, solicitud.id, solicitud.tipo.texto, "Solicitó")
             val siguiente = estado.copy(solicitudes = listOf(solicitud) + estado.solicitudes,
                 auditoria = estado.auditoria + evento)
+            // Actualiza el estado visible después de guardar correctamente en el teléfono.
+            repository(contexto).insertar(solicitud)
             guardar(contexto, siguiente)
             estado = siguiente
         }
     }
 
+    // Conserva los identificadores leídos para que no vuelvan a aparecer como avisos nuevos al reiniciar.
     suspend fun marcarLeidos(contexto: Context, ids: Set<String>) {
         bloqueo.withLock {
             val siguiente = estado.copy(avisosLeidos = estado.avisosLeidos + ids)
@@ -192,6 +218,7 @@ object DatosSolicitudes {
             val siguiente = estado.copy(solicitudes = actualizadas, auditoria = estado.auditoria + evento)
 
             // Primero guarda en el teléfono y luego actualiza la pantalla.
+            repository(contexto).actualizar(actualizadas.first { it.id == id })
             guardar(contexto, siguiente)
             estado = siguiente
 
@@ -227,6 +254,7 @@ object DatosSolicitudes {
                 put("leidos", JSONArray(datos.avisosLeidos.toList()))
             }.toString().toByteArray(Charsets.UTF_8)
             val almacenamiento = archivo(contexto)
+            // La escritura atómica permite recuperar la copia anterior si falla el guardado.
             val salida = almacenamiento.startWrite()
             try {
                 salida.write(contenido)

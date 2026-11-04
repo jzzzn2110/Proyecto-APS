@@ -23,6 +23,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- FileProvider comparte la foto temporal con la cámara mediante una URI con permisos temporales. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.archivos"

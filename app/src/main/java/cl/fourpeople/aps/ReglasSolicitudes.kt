@@ -10,6 +10,7 @@ enum class TipoSolicitud(val texto: String) {
     OTRO("Otro")
 }
 
+// La media jornada consume medio día y la jornada completa consume un día.
 enum class JornadaSolicitud(val texto: String, val factor: Double) {
     COMPLETA("Jornada completa", 1.0),
     MANANA("Media jornada AM", 0.5),
@@ -41,6 +42,7 @@ data class SolicitudFuncionario(
     // Fecha y hora en que se aprobó o rechazó.
     val revisadaEn: String = ""
 ) {
+    // Cuenta ambos extremos del período y aplica el factor de la jornada elegida.
     val dias: Double get() = (
             ChronoUnit.DAYS.between(LocalDate.parse(desde), LocalDate.parse(hasta)) + 1
             ) * jornada.factor
@@ -62,6 +64,7 @@ object ReglasSolicitudes {
             TipoSolicitud.FERIADO -> DatosUsuarios.estado.saldos.feriado.toDouble()
             else -> return Double.POSITIVE_INFINITY
         }
+        // Descuenta los días aprobados y, por defecto, reserva también los que están en revisión.
         val usados = solicitudes.filter {
             it.tipo == tipo && LocalDate.parse(it.desde).year == ano &&
                     (it.estado == EstadoSolicitud.APROBADA ||
@@ -70,6 +73,7 @@ object ReglasSolicitudes {
         return (total - usados).coerceAtLeast(0.0)
     }
 
+    // Centraliza las reglas de fechas, jornadas, motivo, solapamientos y saldo antes del envío.
     fun validar(
         nueva: SolicitudFuncionario,
         existentes: List<SolicitudFuncionario>,
@@ -89,6 +93,7 @@ object ReglasSolicitudes {
         require(nueva.motivo.trim().length in 10..500) {
             "El motivo debe tener entre 10 y 500 caracteres."
         }
+        // Impide cruces con solicitudes vigentes; permite AM y PM diferentes en una misma fecha.
         require(existentes.none {
             it.estado != EstadoSolicitud.RECHAZADA &&
                     !hasta.isBefore(LocalDate.parse(it.desde)) &&
@@ -97,6 +102,7 @@ object ReglasSolicitudes {
                             nueva.jornada != JornadaSolicitud.COMPLETA &&
                             it.jornada != JornadaSolicitud.COMPLETA && nueva.jornada != it.jornada)
         }) { "Ya tienes una solicitud aprobada o en revisión en ese período y jornada." }
+        // Comprueba el saldo incluyendo las reservas de solicitudes pendientes.
         require(nueva.dias <= saldo(existentes, nueva.tipo, desde.year)) {
             "El período supera tu saldo disponible, considerando las solicitudes en revisión."
         }

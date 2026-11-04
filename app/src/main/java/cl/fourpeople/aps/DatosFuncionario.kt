@@ -8,6 +8,7 @@ enum class EstadoDocumento(val texto: String) {
     RECHAZADO("Rechazado")
 }
 
+// Representa un documento del expediente con su archivo, estado y datos de revisión.
 data class DocumentoFuncionario(
     val id: String,
     val nombre: String,
@@ -18,6 +19,7 @@ data class DocumentoFuncionario(
     val motivoRechazo: String = "",
     val archivoUri: String = "",
     val horas: Int? = null,
+    // Conserva el número de versión y las copias anteriores cuando se envía una corrección.
     val version: Int = 1,
     val historial: List<DocumentoFuncionario> = emptyList()
 )
@@ -28,6 +30,7 @@ object DatosFuncionario {
     // Oculta las bajas de las listas sin borrar los documentos guardados.
     val documentosActivos: List<DocumentoFuncionario>
         get() = documentos.filter { DatosAdministracion.activo(it.id) }
+    // La lista es observable: Compose actualiza las pantallas cuando cambian los documentos.
     val documentos = mutableStateListOf(
         DocumentoFuncionario(
             id = "DOC-001",

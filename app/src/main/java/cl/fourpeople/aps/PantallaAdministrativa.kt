@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -19,6 +20,12 @@ import kotlinx.coroutines.withContext
 // pantalla: aquí se cambian títulos, botones y distribución visual.
 @Composable
 fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "expedientes.leer", expediente = true)) {
+        AccesoDenegado(onSalir)
+        return
+    }
+
 
     // Jefatura usa su propia pantalla para revisar solicitudes.
     if (perfil == "Jefatura") {
@@ -115,7 +122,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                             Text("${expediente.run} · ${expediente.centro}")
                             Text("${expediente.cargo} · ${expediente.contrato}")
                             Text("Ingreso: ${expediente.ingreso}")
-                            Button(onClick = { editandoExpediente = true; error = null }) { Text("Editar expediente") }
+                            Button(enabled = ControlAcceso.puede(contexto, "expedientes.editar", expediente = true), onClick = { editandoExpediente = true; error = null }) { Text("Editar expediente") }
                         }
                     }
                     // Dibuja una tarjeta por cada documento del funcionario.
@@ -123,7 +130,7 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
                         (filtroCategoria == "Todas" || item.categoria == filtroCategoria) &&
                             (filtroEstado == "Todos" || item.estado.texto == filtroEstado)
                     }.forEach { item ->
-                        Card(Modifier.fillMaxWidth()) {
+                        Card(Modifier.fillMaxWidth().testTag("documento-admin-${item.id}")) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(item.nombre, fontWeight = FontWeight.Bold)
                                 Text("${item.categoria} · ${item.estado.texto} · v${item.version}")
@@ -200,17 +207,19 @@ fun PantallaAdministrativa(perfil: String, onSalir: () -> Unit) {
             text = {
                 Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    RegistrarConsulta(original)
                     Text("${original.categoria} · ${original.fecha} · ${original.estado.texto}")
                     original.horas?.let { Text("Horas: $it") }
                     VistaPreviaDocumento(original.archivoUri)
+                    DescargarDocumento(original)
                     // Los botones de revisión solo aparecen para documentos pendientes.
-                    OutlinedButton(onClick = { editandoMetadatos = true; error = null }, enabled = !ocupado) {
+                    OutlinedButton(onClick = { editandoMetadatos = true; error = null }, enabled = !ocupado && ControlAcceso.puede(contexto, "expedientes.editar", expediente = true)) {
                         Text("Corregir metadatos")
                     }
-                    OutlinedButton(onClick = { confirmandoBaja = true; motivo = ""; error = null }, enabled = !ocupado) {
+                    OutlinedButton(onClick = { confirmandoBaja = true; motivo = ""; error = null }, enabled = !ocupado && ControlAcceso.puede(contexto, "documentos.baja", expediente = true)) {
                         Text("Dar de baja")
                     }
-                    if (original.estado == EstadoDocumento.PENDIENTE) {
+                    if (original.estado == EstadoDocumento.PENDIENTE && ControlAcceso.puede(contexto, "documentos.revisar", expediente = true)) {
                         OutlinedTextField(motivo, { motivo = it }, label = { Text("Motivo del rechazo") }, enabled = !ocupado)
                         Text("Para rechazar: motivo de 10 a 500 caracteres.")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

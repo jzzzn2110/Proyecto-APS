@@ -26,6 +26,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+// Cada aviso conserva el ID del registro que debe abrirse al pulsarlo.
 data class AvisoFuncionario(
     val id: String,
     val titulo: String,
@@ -36,10 +37,12 @@ data class AvisoFuncionario(
     val simbolo: String
 )
 
+// Construye los avisos dentro de la app a partir de documentos y solicitudes; no programa notificaciones de Android.
 fun avisosFuncionario(hoy: LocalDate = LocalDate.now()): List<AvisoFuncionario> {
     val avisos = mutableListOf<AvisoFuncionario>()
     val formato = DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT)
     DatosFuncionario.documentosActivos.forEach { documento ->
+        // La identidad incluye la versión: una corrección puede generar un aviso nuevo.
         val base = "documento:${documento.id}:${documento.version}"
         when (documento.estado) {
             EstadoDocumento.RECHAZADO -> avisos.add(AvisoFuncionario(
@@ -52,6 +55,7 @@ fun avisosFuncionario(hoy: LocalDate = LocalDate.now()): List<AvisoFuncionario> 
                 "DOCUMENTOS", documento.id, Color(0xFF24518A), "▤"))
             EstadoDocumento.APROBADO -> Unit
         }
+        // Añade un aviso si el documento ya venció o faltan como máximo 30 días.
         val vencimiento = runCatching { LocalDate.parse(documento.vencimiento, formato) }.getOrNull()
         if (vencimiento != null) {
             val dias = ChronoUnit.DAYS.between(hoy, vencimiento)
@@ -68,6 +72,7 @@ fun avisosFuncionario(hoy: LocalDate = LocalDate.now()): List<AvisoFuncionario> 
             }
         }
     }
+    // El estado de cada solicitud define el mensaje y la identidad de su aviso.
     DatosSolicitudes.estado.solicitudes.forEach { solicitud ->
         val (titulo, detalle, color, simbolo) = when (solicitud.estado) {
             EstadoSolicitud.EN_REVISION -> listOf(
@@ -94,11 +99,12 @@ fun avisosFuncionario(hoy: LocalDate = LocalDate.now()): List<AvisoFuncionario> 
 fun PantallaAvisos(onNavegar: (String) -> Unit, onAbrir: (AvisoFuncionario) -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
-    val avisos = AvisosAutomaticos.vigentes()
+    val avisos = ControlAcceso.avisos(contexto)
     val leidos = DatosSolicitudes.estado.avisosLeidos
     var ocupado by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    // Primero guarda los avisos como leídos y después ejecuta la navegación, si corresponde.
     fun marcar(ids: Set<String>, despues: () -> Unit = {}) {
         if (ocupado) return
         ocupado = true

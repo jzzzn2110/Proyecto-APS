@@ -1,0 +1,16 @@
+
+cl.fourpeople.aps.AuditoriaIntegracionTest:.
+cl.fourpeople.aps.CircuitoCompletoTest:.
+cl.fourpeople.aps.ExampleInstrumentedTest:.
+cl.fourpeople.aps.IncidentesIntegracionTest:.
+cl.fourpeople.aps.PantallaAuditoriaTest:.
+cl.fourpeople.aps.PantallaIncidentesTest:.
+cl.fourpeople.aps.PantallaUsuariosTest:.
+cl.fourpeople.aps.UsuariosRespaldoTest:..
+cl.fourpeople.aps.ValidacionSolicitudesTest:.
+
+Time: 643.604
+
+OK (10 tests)
+
+

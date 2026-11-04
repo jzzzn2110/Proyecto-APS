@@ -6,7 +6,6 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -15,7 +14,7 @@ import org.json.JSONObject
 // guardado: conserva documentos y expediente en el teléfono.
 object PersistenciaDocumentos {
     // Una lectura o escritura a la vez.
-    private val bloqueo = Mutex()
+    private val bloqueo get() = AlmacenamientoAps.bloqueo
     // Archivo privado de la app. No cambia al editar los textos de pantalla.
     private fun archivo(c: Context) = AtomicFile(File(c.filesDir, "expediente_funcionario.json"))
 
@@ -54,6 +53,7 @@ object PersistenciaDocumentos {
                 val entrada = try { almacenamiento.openRead() } catch (e: FileNotFoundException) {
                     if (almacenamiento.baseFile.exists()) throw e
                     // Primera ejecución: usa los documentos de demostración.
+                    AuditoriaLocal.eventosDocumentales = emptyList()
                     return@withLock iniciales.toList() to EstadoAdministracion()
                 }
                 try {
@@ -63,6 +63,7 @@ object PersistenciaDocumentos {
                     val datos = raiz.getJSONArray("documentos")
                     val lista = List(datos.length()) { leer(datos.getJSONObject(it)) }
                     require(lista.map { it.id }.distinct().size == lista.size)
+                    AuditoriaLocal.eventosDocumentales = AuditoriaLocal.leer(raiz.optJSONArray("auditoria"))
                     lista to CodecAdministracion.leer(raiz.optJSONObject("administracion"))
                 } catch (e: Exception) {
                     throw IOException("No se pudo leer el expediente. Los datos se conservaron.", e)
@@ -77,13 +78,16 @@ object PersistenciaDocumentos {
     // Guarda todos los documentos y los antecedentes laborales juntos.
     suspend fun guardar(contexto: Context, documentos: List<DocumentoFuncionario>,
                         administracion: EstadoAdministracion = DatosAdministracion.estado) {
+        // Toma una copia de la lista antes de pasar al guardado en segundo plano.
         val copia = documentos.toList()
         withContext(Dispatchers.IO) {
             bloqueo.withLock {
+                val eventos = AuditoriaLocal.eventosDocumentales + AuditoriaLocal.cambios(contexto, copia, administracion)
                 val contenido = JSONObject().apply {
                     put("formato", 1)
                     put("documentos", JSONArray().apply { copia.forEach { put(escribir(it)) } })
                     put("administracion", CodecAdministracion.escribir(administracion))
+                    put("auditoria", AuditoriaLocal.escribir(eventos))
                 }.toString().toByteArray(Charsets.UTF_8)
                 val almacenamiento = archivo(contexto)
                 // AtomicFile conserva la copia anterior si falla la escritura.
@@ -92,6 +96,7 @@ object PersistenciaDocumentos {
                     salida.write(contenido)
                     // Confirma el archivo nuevo cuando terminó de escribirse.
                     almacenamiento.finishWrite(salida)
+                    AuditoriaLocal.eventosDocumentales = eventos
                 } catch (e: Exception) {
                     // Si falla, recupera la copia anterior y muestra el error.
                     almacenamiento.failWrite(salida)
@@ -100,4 +105,33 @@ object PersistenciaDocumentos {
             }
         }
     }
+    internal fun validarRespaldo(raiz: JSONObject) {
+        require(raiz.getInt("formato") == 1)
+        val datos = raiz.getJSONArray("documentos")
+        val lista = List(datos.length()) { leer(datos.getJSONObject(it)) }
+        require(lista.map { it.id }.distinct().size == lista.size)
+        CodecAdministracion.leer(raiz.optJSONObject("administracion"))
+        AuditoriaLocal.leer(raiz.optJSONArray("auditoria"))
+    }
+
+    suspend fun registrarAuditoria(contexto: Context, evento: EventoAuditoria) {
+        withContext(Dispatchers.IO) {
+            bloqueo.withLock {
+                val almacenamiento = archivo(contexto)
+                val raiz = almacenamiento.openRead().bufferedReader(Charsets.UTF_8).use { JSONObject(it.readText()) }
+                val eventos = AuditoriaLocal.leer(raiz.optJSONArray("auditoria")) + evento
+                raiz.put("auditoria", AuditoriaLocal.escribir(eventos))
+                val salida = almacenamiento.startWrite()
+                try {
+                    salida.write(raiz.toString().toByteArray(Charsets.UTF_8))
+                    almacenamiento.finishWrite(salida)
+                    AuditoriaLocal.eventosDocumentales = eventos
+                } catch (e: Exception) {
+                    almacenamiento.failWrite(salida)
+                    throw IOException("No se pudo registrar la auditoría.", e)
+                }
+            }
+        }
+    }
+
 }

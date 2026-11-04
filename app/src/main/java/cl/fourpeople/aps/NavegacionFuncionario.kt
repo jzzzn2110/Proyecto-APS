@@ -8,18 +8,27 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun NavegacionFuncionario(actual: String, onNavegar: (String) -> Unit) {
+    // Cada destino corresponde al nombre de pantalla que maneja MainActivity.
     val destinos = listOf("inicio", "documentos", "solicitudes", "avisos")
     val nombres = listOf("Inicio", "Documentos", "Solicitudes", "Avisos")
     val iconos = listOf(android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_agenda,
         android.R.drawable.ic_menu_today, android.R.drawable.ic_dialog_info)
-    val sinLeer = avisosFuncionario().count { it.id !in DatosSolicitudes.estado.avisosLeidos }
+    val contexto = androidx.compose.ui.platform.LocalContext.current
+    val sinLeer = ControlAcceso.avisos(contexto).count { it.id !in DatosSolicitudes.estado.avisosLeidos }
     NavigationBar(containerColor = Color.White) {
         destinos.forEachIndexed { indice, destino ->
             NavigationBarItem(
                 selected = actual == destino,
+                enabled = when (destino) {
+                    "documentos" -> ControlAcceso.puede(contexto, "documentos.propios", propio = true)
+                    "solicitudes" -> ControlAcceso.puede(contexto, "solicitudes.propias", propio = true)
+                    else -> true
+                },
+                // Evita volver a navegar si el funcionario pulsa la sección que ya está abierta.
                 onClick = { if (actual != destino) onNavegar(destino) },
                 icon = {
                     BadgedBox(badge = {
+                        // Muestra el contador de avisos sin leer, limitado a 99 para que quepa en la insignia.
                         if (destino == "avisos" && sinLeer > 0) {
                             Badge { androidx.compose.material3.Text(sinLeer.coerceAtMost(99).toString()) }
                         }

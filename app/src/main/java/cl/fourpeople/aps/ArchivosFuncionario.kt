@@ -14,6 +14,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
+// Devuelve la dirección de la copia privada y el nombre que verá el funcionario.
 data class ArchivoSeleccionado(
     val uri: String,
     val nombre: String
@@ -23,6 +24,7 @@ object ArchivosFuncionario {
 
     private const val MAXIMO_BYTES = 20 * 1024 * 1024
 
+    // Importa el adjunto en segundo plano para no bloquear la pantalla.
     suspend fun importar(
         context: Context,
         origen: Uri
@@ -35,6 +37,7 @@ object ArchivosFuncionario {
             mkdirs()
         }
 
+        // Usa un archivo temporal hasta comprobar que el contenido sea válido.
         var destino = File(
             carpeta,
             "${UUID.randomUUID()}.tmp"
@@ -52,6 +55,7 @@ object ArchivosFuncionario {
                     val buffer = ByteArray(8192)
                     var total = 0L
 
+                    // Copia por bloques, permite cancelar y rechaza archivos que superen 20 MB.
                     while (true) {
                         currentCoroutineContext().ensureActive()
 
@@ -73,6 +77,7 @@ object ArchivosFuncionario {
                 }
             }
 
+            // Comprueba el contenido real; el nombre o la extensión no bastan para aceptar un PDF.
             val cabecera = ByteArray(5)
 
             destino.inputStream().use {
@@ -114,6 +119,7 @@ object ArchivosFuncionario {
                     "Selecciona un PDF o una imagen válida."
                 }
 
+                // Reduce la imagen de comprobación para no cargar una fotografía grande a tamaño completo.
                 var muestra = 1
 
                 while (
@@ -145,6 +151,7 @@ object ArchivosFuncionario {
 
             currentCoroutineContext().ensureActive()
 
+            // Asigna un nombre único a la copia definitiva para evitar reemplazar otros adjuntos.
             val definitivo = File(
                 carpeta,
                 "${UUID.randomUUID()}.$extension"
@@ -156,6 +163,7 @@ object ArchivosFuncionario {
 
             destino = definitivo
 
+            // Recupera el nombre visible del selector y elimina caracteres de control.
             val nombre = runCatching {
                 context.contentResolver.query(
                     origen,
@@ -180,11 +188,13 @@ object ArchivosFuncionario {
                 nombre = nombre
             )
         } catch (e: Exception) {
+            // Borra la copia incompleta si la importación falla o se cancela.
             destino.delete()
             throw e
         }
     }
 
+    // Limpia adjuntos descartados antes de incorporarlos al expediente.
     suspend fun eliminarSinGuardar(
         context: Context,
         uri: String
@@ -203,6 +213,7 @@ object ArchivosFuncionario {
                     if (direccion.scheme == "file" && ruta != null) {
                         val archivo = File(ruta).canonicalFile
 
+                        // Solo permite borrar archivos de la carpeta privada de documentos de esta app.
                         if (archivo.parentFile == carpeta) {
                             archivo.delete()
                         }

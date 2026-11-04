@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -44,11 +45,19 @@ fun PantallaSolicitudes(
     onNueva: () -> Unit,
     solicitudInicialId: String? = null
 ) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "solicitudes.propias", propio = true)) {
+        AccesoDenegado({ onNavegar("inicio") })
+        return
+    }
+
     var filtro by rememberSaveable { mutableStateOf("Todas") }
+    // Recupera la selección inicial para abrir directamente una solicitud desde sus avisos.
     var seleccionadoId by rememberSaveable(solicitudInicialId) {
         mutableStateOf(solicitudInicialId)
     }
     val solicitudes = DatosSolicitudes.estado.solicitudes
+    // El filtro separa las solicitudes en revisión de las que ya tienen una resolución.
     val visibles = solicitudes.filter {
         when (filtro) {
             "En curso" -> it.estado == EstadoSolicitud.EN_REVISION
@@ -80,7 +89,7 @@ fun PantallaSolicitudes(
                             Text("Días administrativos disponibles", color = Color.Gray)
                             val saldo = ReglasSolicitudes.saldo(solicitudes,
                                 TipoSolicitud.ADMINISTRATIVO, LocalDate.now().year, false)
-                            Text("${textoDias(saldo)} de 6", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text("${textoDias(saldo)} de ${DatosUsuarios.estado.saldos.administrativos}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         }
                         Column(Modifier.weight(1f)) {
                             Text("Feriado legal disponible", color = Color.Gray)
@@ -102,7 +111,7 @@ fun PantallaSolicitudes(
             }
             if (visibles.isEmpty()) Text("No hay solicitudes en esta categoría.", color = Color.Gray)
             visibles.forEach { solicitud ->
-                Card(modifier = Modifier.fillMaxWidth().clickable { seleccionadoId = solicitud.id },
+                Card(modifier = Modifier.fillMaxWidth().testTag("solicitud-funcionario-${solicitud.id}").clickable { seleccionadoId = solicitud.id },
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     shape = RoundedCornerShape(16.dp)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -121,6 +130,7 @@ fun PantallaSolicitudes(
                 fontSize = 12.sp, color = Color.Gray)
         }
     }
+    // Busca el registro por ID para mostrar su detalle con los datos del estado compartido.
     solicitudes.firstOrNull { it.id == seleccionadoId }?.let { solicitud ->
         AlertDialog(
             onDismissRequest = { seleccionadoId = null },
@@ -164,6 +174,7 @@ fun PantallaSolicitudes(
 
 @Composable
 fun PantallaSolicitudEnviada(id: String?, onVerSolicitudes: () -> Unit, onInicio: () -> Unit) {
+    // La confirmación consulta el ID recién guardado, en lugar de crear otra solicitud.
     val solicitud = DatosSolicitudes.estado.solicitudes.firstOrNull { it.id == id }
     BackHandler(onBack = onVerSolicitudes)
     Scaffold(containerColor = Color(0xFFF5F7F4)) { espacio ->

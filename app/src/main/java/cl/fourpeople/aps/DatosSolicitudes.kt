@@ -9,8 +9,8 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -18,7 +18,8 @@ import org.json.JSONObject
 
 data class EstadoTramites(
     val solicitudes: List<SolicitudFuncionario>,
-    val avisosLeidos: Set<String> = emptySet()
+    val avisosLeidos: Set<String> = emptySet(),
+    val auditoria: List<EventoAuditoria> = emptyList()
 )
 
 object DatosSolicitudes {
@@ -41,78 +42,118 @@ object DatosSolicitudes {
             EstadoSolicitud.RECHAZADA, "Falta acreditar las horas compensatorias.")
     ))
 
+    // Las pantallas consultan este estado compartido y se actualizan cuando cambia.
     var estado by mutableStateOf(inicial)
         private set
-    private val bloqueo = Mutex()
+    private val bloqueo get() = AlmacenamientoAps.bloqueo
+
+    private fun repository(contexto: Context) =
+        SolicitudesRepository(ApsDatabase.obtener(contexto).solicitudDao())
 
     private fun archivo(contexto: Context) =
         AtomicFile(File(contexto.filesDir, "solicitudes_funcionario.json"))
 
+    // Recupera las solicitudes del teléfono; usa los ejemplos solo si todavía no existe el archivo.
     suspend fun cargar(contexto: Context) {
         bloqueo.withLock {
-            val cargado = withContext(Dispatchers.IO) {
+            val cargadoJson = withContext(Dispatchers.IO) {
                 val almacenamiento = archivo(contexto)
                 val entrada = try {
                     almacenamiento.openRead()
                 } catch (e: FileNotFoundException) {
                     if (almacenamiento.baseFile.exists()) throw e
-                    return@withContext inicial
+                    return@withContext null
                 }
                 try {
                     val raiz = JSONObject(entrada.bufferedReader(Charsets.UTF_8).use { it.readText() })
-                    require(raiz.getInt("formato") == 1)
-                    val lista = raiz.getJSONArray("solicitudes")
-                    val solicitudes = List(lista.length()) { indice ->
-                        val dato = lista.getJSONObject(indice)
-                        SolicitudFuncionario(
-                            id = dato.getString("id"),
-                            tipo = TipoSolicitud.valueOf(dato.getString("tipo")),
-                            desde = dato.getString("desde"),
-                            hasta = dato.getString("hasta"),
-                            jornada = JornadaSolicitud.valueOf(dato.getString("jornada")),
-                            motivo = dato.getString("motivo"),
-                            creadaEn = dato.getString("creadaEn"),
-                            estado = EstadoSolicitud.valueOf(dato.getString("estado")),
-                            respuesta = dato.optString("respuesta", ""),
-
-                            // Recupera el archivo adjunto de la solicitud.
-                            archivoUri = dato.optString("archivoUri", ""),
-
-                            // Recupera quién revisó la solicitud y cuándo.
-                            // Las solicitudes antiguas pueden tener estos datos vacíos.
-                            revisadaPor = dato.optString("revisadaPor", ""),
-                            revisadaEn = dato.optString("revisadaEn", ""),
-
-
-                        ).also {
-                            require(it.id.isNotBlank())
-                            val desde = LocalDate.parse(it.desde)
-                            val hasta = LocalDate.parse(it.hasta)
-                            require(!hasta.isBefore(desde) && it.dias in 0.5..365.0)
-                        }
-                    }
-                    require(solicitudes.map { it.id }.distinct().size == solicitudes.size)
-                    val leidos = raiz.optJSONArray("leidos") ?: JSONArray()
-                    EstadoTramites(solicitudes, List(leidos.length()) { leidos.getString(it) }.toSet())
+                    leer(raiz)
                 } catch (e: Exception) {
                     throw IOException("No se pudieron leer las solicitudes guardadas. Los datos se conservaron.", e)
+                }
+            }
+            val room = repository(contexto)
+            val migrado = contexto.getSharedPreferences("aps_room", Context.MODE_PRIVATE)
+                .getBoolean("solicitudes_migradas", false)
+            val cargado = if (!migrado && cargadoJson != null) {
+                room.reemplazar(cargadoJson.solicitudes)
+                contexto.getSharedPreferences("aps_room", Context.MODE_PRIVATE).edit()
+                    .putBoolean("solicitudes_migradas", true).apply()
+                cargadoJson
+            } else {
+                val solicitudesRoom = room.listar()
+                if (solicitudesRoom.isEmpty() && cargadoJson == null) {
+                    room.reemplazar(inicial.solicitudes)
+                    inicial
+                } else {
+                    (cargadoJson ?: estado).copy(solicitudes = solicitudesRoom)
                 }
             }
             estado = cargado
         }
     }
 
+    internal fun leer(raiz: JSONObject): EstadoTramites {
+        require(raiz.getInt("formato") == 1)
+        val lista = raiz.getJSONArray("solicitudes")
+        val solicitudes = List(lista.length()) { indice ->
+            val dato = lista.getJSONObject(indice)
+            SolicitudFuncionario(
+                id = dato.getString("id"),
+                tipo = TipoSolicitud.valueOf(dato.getString("tipo")),
+                desde = dato.getString("desde"),
+                hasta = dato.getString("hasta"),
+                jornada = JornadaSolicitud.valueOf(dato.getString("jornada")),
+                motivo = dato.getString("motivo"),
+                creadaEn = dato.getString("creadaEn"),
+                estado = EstadoSolicitud.valueOf(dato.getString("estado")),
+                respuesta = dato.optString("respuesta", ""),
+
+                // Recupera el archivo adjunto de la solicitud.
+                archivoUri = dato.optString("archivoUri", ""),
+
+                // Recupera quién revisó la solicitud y cuándo.
+                // Las solicitudes antiguas pueden tener estos datos vacíos.
+                revisadaPor = dato.optString("revisadaPor", ""),
+                revisadaEn = dato.optString("revisadaEn", ""),
+
+
+            ).also {
+                require(it.id.isNotBlank())
+                LocalDateTime.parse(it.creadaEn)
+                if (it.revisadaEn.isNotBlank()) LocalDateTime.parse(it.revisadaEn)
+                val desde = LocalDate.parse(it.desde)
+                val hasta = LocalDate.parse(it.hasta)
+                require(!hasta.isBefore(desde) && it.dias in 0.5..365.0)
+            }
+        }
+        require(solicitudes.map { it.id }.distinct().size == solicitudes.size)
+        val leidos = raiz.optJSONArray("leidos") ?: JSONArray()
+        return EstadoTramites(solicitudes, List(leidos.length()) { leidos.getString(it) }.toSet(),
+            AuditoriaLocal.leer(raiz.optJSONArray("auditoria")))
+    }
+
+    suspend fun asegurarPersistencia(contexto: Context) = bloqueo.withLock {
+        if (!File(contexto.filesDir, "solicitudes_funcionario.json").exists()) guardar(contexto, estado)
+    }
+
     suspend fun enviar(contexto: Context, solicitud: SolicitudFuncionario) {
         bloqueo.withLock {
+            ControlAcceso.exigir(contexto, "solicitudes.propias", propio = true)
+            // Una solicitud nueva debe estar en revisión, tener un ID único y cumplir las reglas de fechas y saldo.
             require(solicitud.estado == EstadoSolicitud.EN_REVISION)
             require(estado.solicitudes.none { it.id == solicitud.id })
             ReglasSolicitudes.validar(solicitud, estado.solicitudes)
-            val siguiente = estado.copy(solicitudes = listOf(solicitud) + estado.solicitudes)
+            val evento = AuditoriaLocal.evento(contexto, solicitud.id, solicitud.tipo.texto, "Solicitó")
+            val siguiente = estado.copy(solicitudes = listOf(solicitud) + estado.solicitudes,
+                auditoria = estado.auditoria + evento)
+            // Actualiza el estado visible después de guardar correctamente en el teléfono.
+            repository(contexto).insertar(solicitud)
             guardar(contexto, siguiente)
             estado = siguiente
         }
     }
 
+    // Conserva los identificadores leídos para que no vuelvan a aparecer como avisos nuevos al reiniciar.
     suspend fun marcarLeidos(contexto: Context, ids: Set<String>) {
         bloqueo.withLock {
             val siguiente = estado.copy(avisosLeidos = estado.avisosLeidos + ids)
@@ -130,6 +171,7 @@ object DatosSolicitudes {
         respuesta: String
     ) {
         // Comprueba el permiso antes de modificar los datos.
+        ControlAcceso.exigir(contexto, "solicitudes.resolver", expediente = true)
         require(perfil == "Jefatura") {
             "Solo Jefatura puede resolver solicitudes."
         }
@@ -165,16 +207,18 @@ object DatosSolicitudes {
                         },
                         respuesta = respuestaLimpia,
 
-                        // Usuario fijo de la sesión de demostración.
-                        revisadaPor = "jefatura",
+                        revisadaPor = requireNotNull(ControlAcceso.perfil(contexto)).usuario,
                         revisadaEn = java.time.LocalDateTime.now().toString()
                     )
                 }
             }
 
-            val siguiente = estado.copy(solicitudes = actualizadas)
+            val evento = AuditoriaLocal.evento(contexto, original.id, original.tipo.texto,
+                if (aprobar) "Aprobó solicitud" else "Rechazó solicitud", detalle = respuestaLimpia)
+            val siguiente = estado.copy(solicitudes = actualizadas, auditoria = estado.auditoria + evento)
 
             // Primero guarda en el teléfono y luego actualiza la pantalla.
+            repository(contexto).actualizar(actualizadas.first { it.id == id })
             guardar(contexto, siguiente)
             estado = siguiente
 
@@ -205,10 +249,12 @@ object DatosSolicitudes {
             }
             val contenido = JSONObject().apply {
                 put("formato", 1)
+                put("auditoria", AuditoriaLocal.escribir(datos.auditoria))
                 put("solicitudes", solicitudes)
                 put("leidos", JSONArray(datos.avisosLeidos.toList()))
             }.toString().toByteArray(Charsets.UTF_8)
             val almacenamiento = archivo(contexto)
+            // La escritura atómica permite recuperar la copia anterior si falla el guardado.
             val salida = almacenamiento.startWrite()
             try {
                 salida.write(contenido)

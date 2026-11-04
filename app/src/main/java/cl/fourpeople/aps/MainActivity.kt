@@ -47,20 +47,24 @@ class MainActivity : ComponentActivity() {
 
                 // Recuerda el perfil elegido al ingresar.
                 var perfilActual by rememberSaveable { mutableStateOf("Funcionario") }
+                var usuarioActual by rememberSaveable { mutableStateOf("") }
 
                 // Indica qué pantalla del funcionario se muestra.
                 var pantallaActual by rememberSaveable {
                     mutableStateOf("inicio")
                 }
 
+                // Estos identificadores permiten abrir desde un aviso el documento o la solicitud correspondiente.
                 var documentoObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
                 var solicitudObjetivo by rememberSaveable { mutableStateOf<String?>(null) }
+                // Al cambiar de sección, limpia la selección anterior para no abrir un detalle equivocado.
                 val navegar: (String) -> Unit = { destino ->
                     documentoObjetivo = null
                     solicitudObjetivo = null
                     pantallaActual = destino
                 }
 
+                // Mantiene la vista de carga hasta recuperar los datos; si falla, permite reintentar.
                 var preparado by remember {
                     mutableStateOf(false)
                 }
@@ -79,6 +83,8 @@ class MainActivity : ComponentActivity() {
                     errorCarga = null
 
                     try {
+                        RespaldoLocal.recuperarPendiente(applicationContext)
+                        DatosUsuarios.cargar(applicationContext)
                         val guardados = PersistenciaDocumentos.cargar(
                             applicationContext,
                             DatosFuncionario.documentos.toList()
@@ -87,13 +93,23 @@ class MainActivity : ComponentActivity() {
                         DatosFuncionario.documentos.clear()
                         DatosFuncionario.documentos.addAll(guardados)
 
+                        PersistenciaDocumentos.guardar(applicationContext, guardados)
                         DatosSolicitudes.cargar(applicationContext)
+                        DatosSeguridad.cargar(applicationContext)
                         preparado = true
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         errorCarga = e.message
                             ?: "No se pudo abrir el expediente."
+                    }
+                }
+
+                LaunchedEffect(preparado, sesionIniciada, usuarioActual, DatosSeguridad.estado.bloqueadas, DatosUsuarios.estado.usuarios) {
+                    if (preparado && sesionIniciada && (usuarioActual in DatosSeguridad.estado.bloqueadas || ControlAcceso.perfil(applicationContext)?.activa != true)) {
+                        sesionIniciada = false
+                        SesionLocal.limpiar(applicationContext)
+                        navegar("inicio")
                     }
                 }
 
@@ -134,13 +150,34 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         // Administrativo y Jefatura entran a su propia pantalla.
+                    } else if (sesionIniciada && perfilActual == "TI / Admin") {
+                        PantallaAuditoria(onRestaurado = {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            preparado = false
+                            intento++
+                            android.widget.Toast.makeText(applicationContext, "Respaldo restaurado. Inicia sesión nuevamente.", android.widget.Toast.LENGTH_LONG).show()
+                        }) {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            navegar("inicio")
+                        }
                     } else if (sesionIniciada && perfilActual != "Funcionario") {
                         PantallaAdministrativa(perfilActual) {
                             sesionIniciada = false
                             SesionLocal.limpiar(applicationContext)
                             navegar("inicio")
                         }
+                    } else if (sesionIniciada && ControlAcceso.perfil(applicationContext)?.let {
+                            it.usuario != DatosAdministracion.estado.expediente.usuario || it.centro != DatosAdministracion.estado.expediente.centro
+                        } == true) {
+                        AccesoDenegado {
+                            sesionIniciada = false
+                            SesionLocal.limpiar(applicationContext)
+                            navegar("inicio")
+                        }
                     } else if (sesionIniciada) {
+                        // Selecciona la pantalla del funcionario y conecta sus botones mediante callbacks.
                         when (pantallaActual) {
                             "documentos" -> PantallaDocumentos(
                                 onVolver = { navegar("inicio") },
@@ -167,6 +204,7 @@ class MainActivity : ComponentActivity() {
                             "avisos" -> PantallaAvisos(
                                 onNavegar = navegar,
                                 onAbrir = { aviso ->
+                                    // El grupo del aviso determina qué sección abrir y qué registro dejar seleccionado.
                                     if (aviso.grupo == "DOCUMENTOS") {
                                         documentoObjetivo = aviso.destinoId
                                         pantallaActual = "documentos"
@@ -190,9 +228,10 @@ class MainActivity : ComponentActivity() {
                     } else {
                         PantallaLogin(
                             // El login devuelve el perfil seleccionado
-                            onIngresar = { perfil ->
+                            onIngresar = { perfil, usuario ->
                                 perfilActual = perfil
-                                SesionLocal.guardar(applicationContext, usuario = perfil.lowercase(), rol = perfil)
+                                usuarioActual = usuario
+                                SesionLocal.guardar(applicationContext, usuario = usuario, rol = perfil)
                                 pantallaActual = "inicio"
                                 sesionIniciada = true
                             }
@@ -206,7 +245,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 // login de prueba: aquí están el formulario y la validación de las cuentas ficticias.
-private fun PantallaLogin(onIngresar: (String) -> Unit) {
+private fun PantallaLogin(onIngresar: (String, String) -> Unit) {
+    // Conserva lo escrito en el formulario cuando Android recrea la pantalla.
     var usuario by rememberSaveable {
         mutableStateOf("")
     }
@@ -349,29 +389,8 @@ private fun PantallaLogin(onIngresar: (String) -> Unit) {
 
             Button(
                 onClick = {
-                    when {
-                        usuario.isBlank() || clave.isBlank() -> {
-                            error = "Completa el usuario y la contraseña."
-                        }
-
-                        rol == "TI / Admin" -> {
-                            error = "En esta etapa está disponible " +
-                                    "Funcionario, Administrativo y Jefatura."
-                        }
-
-                        // cuenta de prueba: usuario distinto según el perfil.
-                        usuario.trim() == when (rol) {
-                            "Administrativo" -> "administrativo"
-                            "Jefatura" -> "jefatura"
-                            else -> "c.rojas"
-                        } && clave == "Contraseña123#" -> {
-                            onIngresar(rol)
-                        }
-
-                        else -> {
-                            error = "Usuario o contraseña incorrectos."
-                        }
-                    }
+                    val problema = AccesoCuentas.errorIngreso(usuario, clave, rol, DatosSeguridad.estado.bloqueadas)
+                    if (problema == null) onIngresar(rol, usuario.trim()) else error = problema
                 },
                 modifier = Modifier
                     .fillMaxWidth()

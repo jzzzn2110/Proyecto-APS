@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +23,12 @@ fun PantallaJefatura(
     perfil: String,
     onSalir: () -> Unit
 ) {
+    val contextoAcceso = androidx.compose.ui.platform.LocalContext.current
+    if (!ControlAcceso.puede(contextoAcceso, "expedientes.leer", expediente = true)) {
+        AccesoDenegado(onSalir)
+        return
+    }
+
     // Permite acceder al almacenamiento del teléfono.
     val contexto = LocalContext.current.applicationContext
 
@@ -179,7 +186,7 @@ fun PantallaJefatura(
 
             // Muestra una tarjeta por cada solicitud.
             visibles.forEach { item ->
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth().testTag("solicitud-jefatura-${item.id}")) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -271,7 +278,7 @@ fun PantallaJefatura(
                     }
 
                     // Solo las solicitudes pendientes se pueden resolver.
-                    if (item.estado == EstadoSolicitud.EN_REVISION) {
+                    if (item.estado == EstadoSolicitud.EN_REVISION && ControlAcceso.puede(contexto, "solicitudes.resolver", expediente = true)) {
                         OutlinedTextField(
                             value = respuesta,
                             onValueChange = {

@@ -1,0 +1,30 @@
+{
+  "resultado": "APROBADO",
+  "fechaDispositivo": "2026-11-02T23:21:14.932318",
+  "documentoId": "d31ebb00-48a3-4af8-8736-7067a3d9c80a",
+  "nombreDocumento": "Contrato integración c62e24",
+  "version": 2,
+  "estadoDocumento": "APROBADO",
+  "solicitudId": "d9b4c85d-19d7-4b1a-83a6-ed1065f3b6b1",
+  "estadoSolicitud": "APROBADA",
+  "pasos": [
+    "Funcionario cargó PDF real en estado Pendiente",
+    "Administrativo rechazó con observación",
+    "Funcionario corrigió conservando ID, PDF anterior e historial v1\/v2",
+    "Administrativo aprobó la versión corregida",
+    "Funcionario envió solicitud con PDF de respaldo",
+    "Jefatura aprobó con respuesta y quedó registrada la resolución",
+    "Funcionario consultó la respuesta aprobada",
+    "TI consultó la trazabilidad completa y se verificó el contenido CSV filtrado"
+  ],
+  "accionesDocumento": [
+    "Validó",
+    "Vio",
+    "Modificó",
+    "Rechazó",
+    "Cargó"
+  ],
+  "sdk": 37,
+  "dispositivo": "sdk_gphone16k_x86_64",
+  "selector": "ACTION_OPEN_DOCUMENT interceptado con PDF ficticio; importación y persistencia reales"
+}
